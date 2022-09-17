@@ -2,7 +2,7 @@ test: Sending an email and checking that it was delivered
 
 steps:
   - step: Sending an email
-    perform: mail.send
+    perform: testman.testers.mail.send
     with:
       server: smtp.gmail.com:587
       username: $GMAIL_USERNAME
@@ -17,7 +17,7 @@ steps:
         regards,
         TestMan
   - step: Checking that the email has been delivered
-    perform: mail.pop
+    perform: testman.testers.mail.pop
     with:
       server: pop.gmail.com
       username: $GMAIL_USERNAME

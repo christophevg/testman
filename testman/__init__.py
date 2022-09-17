@@ -16,18 +16,21 @@ class Test():
   A Test holds all information regarding a test and allows to execute it.
   """
   def __init__(self, description, steps):
-    self._description = description
-    self._steps       = [ Step(step) for step in steps ]
-    self._results     = []
-    logger.debug(f"loaded '{self._description}' with {len(self._steps)} steps")
+    self.description = description
+    self.steps       = steps
+    self._results    = []
+    logger.debug(f"loaded '{self.description}' with {len(self.steps)} steps")
 
-  def given(self, results):
+  @classmethod
+  def from_dict(cls, d):
+    return Test(d.get("test"), [Step.from_dict(s) for s in d.get("steps", [])])
+
+  def given(self, previous_results):
     """
     Consider previous results. This erases previously recorded results in this
     object.
     """
-    self._results = [ results ]
-    return self
+    self._results = [ previous_results ]
 
   def execute(self):
     """
@@ -36,7 +39,7 @@ class Test():
     results = []
     previous = self.results
     logger.debug(f"comparing to {len(previous)} previous results")
-    for index, step in enumerate(self._steps):
+    for index, step in enumerate(self.steps):
       result = { "step" : step.name, "result" : "failed" }
       if not step.always and index < len(previous) and previous[index]["result"] == "success":
         logger.info(f"♻️ {step.name}")
@@ -68,36 +71,53 @@ class Test():
     """
     return self._results[-1] if self._results else []
   
-
 class Step():
-  def __init__(self, spec):
-    self.name  = spec.pop("step")
-    mod_name, func_name = spec.pop("perform").rsplit(".", 1)
-    try:
-      mod                 = importlib.import_module(f"testman.testers.{mod_name}")
-      self._fqn           = f"testman.testers.{mod_name}.{func_name}"
-    except ModuleNotFoundError:
+  def __init__(self, name=None,    func=None,     args=None,
+                     asserts=None, proceed=False, always=False):
+    self.name    = name
+    if not self.name:
+      raise ValueError("a step needs a name")
+    self.func    = func
+    if not self.func:
+      raise ValueError("a step needs a function")
+    self.args    = args or {}
+    self.asserts = asserts or []
+    self.proceed = proceed
+    self.always  = always
+  
+  @classmethod
+  def from_dict(cls, d):
+    name = d["step"]
+    func = d["perform"]
+    # parse string into func
+    if isinstance(func, str):
+      mod_name, func_name = func.rsplit(".", 1)
       try:
-        mod                 = importlib.import_module(f"{mod_name}")
-        self._fqn           = f"{mod_name}.{func_name}"      
-      except ModuleNotFoundError:
-        logger.error(f"could not find '{mod_name}.{func_name}")
-        raise ValueError(f"could not find '{mod_name}.{func_name}")
-    self._func          = getattr(mod, func_name)
-    self._args          = {
+        mod  = importlib.import_module(f"{mod_name}")
+        func = getattr(mod, func_name)
+      except ModuleNotFoundError as e:
+        raise ValueError(f"in step '{name}': unknown module {mod_name}") from e
+      except AttributeError as e:
+        raise ValueError(f"in step '{name}': unknown function {func_name}") from e
+    # substitute environment variables formatted as $name
+    args = {
       k : os.environ.get(v[1:]) if v[0] == "$" else v
-      for k,v in spec.pop("with", {}).items()
-    }
-    assertions = spec.pop("assert", [])
-    if not isinstance(assertions, list):
-      assertions = [ assertions ]
-    self._assertions    = [ Assertion(a) for a in assertions ]
-    self.proceed        = spec.pop("continue", False)
-    self.always         = spec.pop("always", False)
+      for k,v in d.get("with", {}).items()
+    } 
+    # accept single string or list of strings
+    asserts = d.get("assert", [])
+    if not isinstance(asserts, list):
+      asserts = [ asserts ]
+    asserts = [ Assertion(a) for a in asserts ]
+
+    return Step(
+      name, func, args,
+      asserts, d.get("continue", None), d.get("always", None)
+    )
   
   def execute(self):
-    result = self._func(**self._args)
-    for a in self._assertions:
+    result = self.func(**self.args)
+    for a in self.asserts:
       a(result)
     return result
 
