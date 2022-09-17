@@ -1,0 +1,50 @@
+test: Playing with mocked tests
+
+steps:
+  - step: Test that an envrionment variable as argument is returned
+    perform: mock.test
+    with:
+      hello: $STEP1_VALUE
+    assert: result.hello == "world"
+    always: yes
+
+  - step: Test that an incorrect argument fails
+    perform: mock.test
+    with:
+      hello: WORLD
+    assert: result.hello == "world"
+    continue: yes
+
+  - step: Test that a random value is bigger than 0.7
+    perform: mock.random
+    assert: result > 0.7
+    continue: yes
+
+  - step: Test that two keys of a random dict match criteria
+    perform: mock.random_dict
+    assert:
+      - result.result1 < 0.5
+      - result.result2 > 0.5 or result.result2 < 0.1
+    continue: yes
+
+  - step: Test that any values in a random list is < 0.5
+    perform: mock.random_list
+    assert: any item < 0.5 for item in result
+    continue: yes
+
+  - step: Test that all of the dicts in a list have result1 < 0.5
+    perform: mock.random_list_of_dict
+    assert: all item.result1 < 0.5 for item in result
+    continue: yes
+
+  - step: Test that values inside a nested dict can be asserted
+    perform: mock.nested_dict
+    assert: any item.subresult == 1 for item in result.subresults
+    continue: yes
+
+  - step: Test that object properties and methods can be asserted
+    perform: mock.an_object
+    assert:
+      - result.a == 1
+      - result.get_body() == "hello"
+    continue: yes

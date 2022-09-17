@@ -1,0 +1,25 @@
+test: Sending an email and checking that it was delivered
+
+steps:
+  - step: Sending an email
+    perform: mail.send
+    with:
+      server: smtp.gmail.com:587
+      username: $GMAIL_USERNAME
+      password: $GMAIL_PASSWORD
+      recipient: $GMAIL_USERNAME
+      subject: A message from TestMan
+      body: >
+        Hello,
+      
+        This is an automated message from TestMan.
+      
+        regards,
+        TestMan
+  - step: Checking that the email has been delivered
+    perform: mail.pop
+    with:
+      server: pop.gmail.com
+      username: $GMAIL_USERNAME
+      password: $GMAIL_PASSWORD
+    assert: any mail.Subject == "A message from TestMan" for mail in result
