@@ -17,6 +17,7 @@ logging.basicConfig(level=LOG_LEVEL, format=FORMAT, datefmt=DATEFMT)
 formatter = logging.Formatter(FORMAT, DATEFMT)
 
 from testman       import __version__, Test, Step
+from testman.util  import prune
 from testman.store import MemoryStore, YamlStore, JsonStore, MongoStore
 
 import json
@@ -30,7 +31,7 @@ class TestManCLI():
       % testman script examples/mock.yaml execute results
   """
   def __init__(self):
-    self.tests    = MemoryStore()
+    self.stored     = MemoryStore()
     self._selection = "all"
   
   def version(self):
@@ -41,7 +42,7 @@ class TestManCLI():
   
   def state(self, uri):
     moniker, connection_string = uri.split("://", 1)
-    self.tests = {
+    self.stored = {
       "yaml"   : YamlStore,
       "json"   : JsonStore,
       "mongodb": MongoStore
@@ -54,7 +55,7 @@ class TestManCLI():
     """
     logger.debug(f"loading from '{statefile}'")
     
-    self.tests.add(
+    self.stored.add(
       Test.from_dict(
         self._load(statefile),
         work_dir=os.path.dirname(os.path.realpath(statefile))
@@ -92,14 +93,26 @@ class TestManCLI():
     return self._selection
 
   @property
-  def _selected_tests(self):
-    return [ self.tests[uid].as_dict() for uid in self.selection ]
+  def tests(self):
+    return [ self.stored[uid] for uid in self.selection ]
+
+  @property
+  def results(self):
+    return [ [ prune(results) for results in test.results] for test in self.tests ]
+
+  @property
+  def results_as_json(self):
+    return json.dumps(self.results, indent=2)
+
+  @property
+  def results_as_yaml(self):
+    return yaml.dump(self.results)
 
   def list(self):
     """
     List all tests' uids.
     """
-    return self.tests.keys()
+    return self.stored.keys()
 
   def execute(self):
     """
@@ -108,7 +121,7 @@ class TestManCLI():
     for uid in self.selection:
       # try:
         logger.info(f"⏳ running test '{uid}'")
-        self.tests[uid].execute()
+        self.stored[uid].execute()
       # except AttributeError:
       #   logger.warn(f"🚨 unknown test '{uid}")
     return self
@@ -133,7 +146,7 @@ class TestManCLI():
         "summary" : f"{pending} pending" if pending else "all done"
       }
     return {
-      uid : summary(self.tests[uid].status)
+      uid : summary(self.stored[uid].status)
       for uid in self.selection 
     }
 
@@ -141,14 +154,14 @@ class TestManCLI():
     """
     Provide results.
     """
-    print(json.dumps(self._selected_tests, indent=2))
+    print(json.dumps([ test.as_dict() for test in self.tests ], indent=2))
     return self
 
   def as_yaml(self):
     """
     Provide results.
     """
-    print(yaml.dump(self._selected_tests, indent=2))
+    print(yaml.dump([ test.as_dict() for test in self.tests ], indent=2))
     return self
 
   def __str__(self):
