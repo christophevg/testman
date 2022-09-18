@@ -99,11 +99,18 @@ class Step():
         raise ValueError(f"in step '{name}': unknown module {mod_name}") from e
       except AttributeError as e:
         raise ValueError(f"in step '{name}': unknown function {func_name}") from e
-    # substitute environment variables formatted as $name
-    args = {
-      k : os.environ.get(v[1:]) if v[0] == "$" else v
-      for k,v in d.get("with", {}).items()
-    } 
+    # substitute environment variables formatted as $name and files as @name
+    def expand(v):
+      if v[0] == "~":
+        with open(v[1:]) as fp:
+          v = fp.read()
+      elif v[0] == "$":
+        try:
+          v = os.environ[v[1:]]
+        except KeyError as e:
+          raise ValueError(f"in step '{name}': unknown variable '{v}'") from e
+      return v
+    args = { k : expand(v) for k,v in d.get("with", {}).items() }
     # accept single string or list of strings
     asserts = d.get("assert", [])
     if not isinstance(asserts, list):

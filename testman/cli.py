@@ -44,7 +44,9 @@ class TestManCLI():
     logger.debug(f"loading script from '{script}'")
     with open(script) as fp:
       spec = yaml.safe_load(fp)
+
     self._test = Test.from_dict(spec)
+    
     return self
 
   def given(self, results):
