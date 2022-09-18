@@ -16,16 +16,17 @@ class Test():
   
   A Test holds all information regarding a test and allows to execute it.
   """
-  def __init__(self, description, steps, vars=None, constants=None):
+  def __init__(self, description, steps, vars=None, constants=None, work_dir=None):
     self.description = description
     self.steps       = steps
     self._vars       = vars
     self.constants   = constants
+    self.work_dir    = work_dir
     self._results    = []
     logger.debug(f"loaded '{self.description}' with {len(self.steps)} steps")
 
   @classmethod
-  def from_dict(cls, d):
+  def from_dict(cls, d, work_dir=None):
     vars = {
       var : expand(value) for var, value in d.get("variables", {}).items()
     }
@@ -33,7 +34,7 @@ class Test():
       var : expand(value) for var, value in d.get("constants", {}).items()
     }
     steps  = [ Step.from_dict(s) for s in d.get("steps", []) ]
-    return Test( d.get("test"), steps, vars, constants )
+    return Test( d.get("test"), steps, vars, constants, work_dir=work_dir )
 
   def given(self, previous_results):
     """
@@ -46,6 +47,9 @@ class Test():
     """
     Execute the script.
     """
+    if self.work_dir:
+      cwd = os.getcwd() 
+      os.chdir(self.work_dir)
     results = []
     previous = self.results
     logger.debug(f"comparing to {len(previous)} previous results")
@@ -72,6 +76,8 @@ class Test():
       if result["result"] == "failed":
         if not step.proceed:
           break
+    if self.work_dir:
+      os.chdir(cwd)
     self._results.append(results)
   
   @property

@@ -12,7 +12,7 @@ steps:
       password: $GMAIL_PASSWORD
       recipient: $GMAIL_USERNAME
       subject: A message from TestMan
-      body: ~examples/gmail_body.txt
+      body: ~gmail_body.txt
   - step: Checking that the email has been delivered
     perform: testman.testers.mail.pop
     with:

@@ -45,7 +45,8 @@ class TestManCLI():
     with open(script) as fp:
       spec = yaml.safe_load(fp)
 
-    self._test = Test.from_dict(spec)
+    wd = os.path.dirname(os.path.realpath(script))
+    self._test = Test.from_dict(spec, work_dir=wd)
     
     return self
 
