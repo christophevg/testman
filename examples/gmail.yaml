@@ -1,5 +1,8 @@
 test: Sending an email and checking that it was delivered
 
+variables:
+  TIMESTAMP: testman.util.utcnow
+
 steps:
   - step: Sending an email
     perform: testman.testers.mail.send

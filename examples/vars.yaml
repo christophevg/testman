@@ -1,0 +1,15 @@
+test: using variables
+
+constants:
+  constant_id: uuid.uuid4
+
+variables:
+  variable_id: uuid.uuid4
+
+steps:
+  - step: step 1
+    perform: testman.testers.mock.test
+    with:
+      variable: $variable_id
+      constant: $constant_id
+    always: yes

@@ -4,9 +4,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 import os
-import importlib
 import traceback
 from dotmap import DotMap
+
+from testman.util import get_function, expand
 
 class Test():
   
@@ -15,15 +16,24 @@ class Test():
   
   A Test holds all information regarding a test and allows to execute it.
   """
-  def __init__(self, description, steps):
+  def __init__(self, description, steps, vars=None, constants=None):
     self.description = description
     self.steps       = steps
+    self._vars       = vars
+    self.constants   = constants
     self._results    = []
     logger.debug(f"loaded '{self.description}' with {len(self.steps)} steps")
 
   @classmethod
   def from_dict(cls, d):
-    return Test(d.get("test"), [Step.from_dict(s) for s in d.get("steps", [])])
+    vars = {
+      var : expand(value) for var, value in d.get("variables", {}).items()
+    }
+    constants = {
+      var : expand(value) for var, value in d.get("constants", {}).items()
+    }
+    steps  = [ Step.from_dict(s) for s in d.get("steps", []) ]
+    return Test( d.get("test"), steps, vars, constants )
 
   def given(self, previous_results):
     """
@@ -47,7 +57,7 @@ class Test():
         result["skipped"] = True
       else:  
         try:
-          result["output"] = step.execute()
+          result["output"] = step.execute(self.vars)
           result["result"] = "success"
           logger.info(f"✅ {step.name}")
         except AssertionError as e:
@@ -63,6 +73,15 @@ class Test():
         if not step.proceed:
           break
     self._results.append(results)
+  
+  @property
+  def vars(self):
+    v = {}
+    if self._vars:
+      v.update(self._vars)
+    if self.constants:
+      v.update(self.constants)
+    return v
   
   @property
   def results(self):
@@ -86,31 +105,18 @@ class Step():
     self.always  = always
   
   @classmethod
-  def from_dict(cls, d):
+  def from_dict(cls, d,):
     name = d["step"]
     func = d["perform"]
     # parse string into func
     if isinstance(func, str):
-      mod_name, func_name = func.rsplit(".", 1)
       try:
-        mod  = importlib.import_module(f"{mod_name}")
-        func = getattr(mod, func_name)
+        func = get_function(func)
       except ModuleNotFoundError as e:
-        raise ValueError(f"in step '{name}': unknown module {mod_name}") from e
+        raise ValueError(f"in step '{name}': unknown module for {func}") from e
       except AttributeError as e:
-        raise ValueError(f"in step '{name}': unknown function {func_name}") from e
-    # substitute environment variables formatted as $name and files as @name
-    def expand(v):
-      if v[0] == "~":
-        with open(v[1:]) as fp:
-          v = fp.read()
-      elif v[0] == "$":
-        try:
-          v = os.environ[v[1:]]
-        except KeyError as e:
-          raise ValueError(f"in step '{name}': unknown variable '{v}'") from e
-      return v
-    args = { k : expand(v) for k,v in d.get("with", {}).items() }
+        raise ValueError(f"in step '{name}': unknown function {func}") from e
+    args = d.get("with", {})
     # accept single string or list of strings
     asserts = d.get("assert", [])
     if not isinstance(asserts, list):
@@ -122,8 +128,12 @@ class Step():
       asserts, d.get("continue", None), d.get("always", None)
     )
   
-  def execute(self):
-    result = self.func(**self.args)
+  def execute(self, vars=None):
+    if not vars:
+      vars = {}
+    # substitute environment variables formatted as $name and files as @name
+    args = { k : expand(v, vars) for k,v in self.args.items() }
+    result = self.func(**args)
     for a in self.asserts:
       a(result)
     return result

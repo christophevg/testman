@@ -56,9 +56,12 @@ class TestManCLI():
     try:
       with open(results) as fp:
         previous = json.load(fp)
-        self._test.given(previous)
-    except:
-      logger.warn("failed to load previous results")
+        if "constants" in previous:
+          self._test.constants = previous["constants"]
+        if "results" in previous:
+          self._test.given(previous["results"])
+    except Exception as e:
+      logger.warn(f"failed to load previous results: {str(e)}")
     return self
 
   def execute(self):
@@ -69,7 +72,10 @@ class TestManCLI():
     """
     Provide results.
     """
-    print(json.dumps(self._test.results, indent=2, default=str))
+    print(json.dumps({
+      "constants" : self._test.constants,
+      "results" : self._test.results
+    }, indent=2, default=str))
     return self
 
   def __str__(self):
