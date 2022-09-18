@@ -16,7 +16,8 @@ DATEFMT = "%Y-%m-%d %H:%M:%S %z"
 logging.basicConfig(level=LOG_LEVEL, format=FORMAT, datefmt=DATEFMT)
 formatter = logging.Formatter(FORMAT, DATEFMT)
 
-from testman import __version__, Test, Step
+from testman       import __version__, Test, Step
+from testman.store import MemoryStore, YamlStore, JsonStore
 
 import json
 import yaml
@@ -29,7 +30,8 @@ class TestManCLI():
       % testman script examples/mock.yaml execute results
   """
   def __init__(self):
-    self._test = None
+    self.tests    = MemoryStore()
+    self._selection = "all"
   
   def version(self):
     """
@@ -37,57 +39,92 @@ class TestManCLI():
     """
     print(__version__)
   
-  def script(self, script):
+  def state(self, uri):
+    moniker, connection_string = uri.split("://", 1)
+    self.tests = {
+      "yaml" : YamlStore,
+      "json" : JsonStore
+    }[moniker](connection_string)
+    return self  
+  
+  def load(self, statefile):
     """
-    Load a TestMan script encoded in JSON or YAML.
+    Load a TestMan script/state encoded in JSON or YAML.
     """
-    logger.debug(f"loading script from '{script}'")
+    logger.debug(f"loading from '{statefile}'")
+    
+    self.tests.add(
+      Test.from_dict(
+        self._load(statefile),
+        work_dir=os.path.dirname(os.path.realpath(statefile))
+      )
+    )
+    return self
 
-    _, ext = script.rsplit(".", 1)
+  def _load(self, filename):
+    _, ext = filename.rsplit(".", 1)
     loader = {
       "yaml" : yaml.safe_load,
       "yml"  : yaml.safe_load,
       "json" : json.load
     }[ext]
-    with open(script) as fp:
-      spec = loader(fp)
+    with open(filename) as fp:
+      return loader(fp)
 
-    wd = os.path.dirname(os.path.realpath(script))
-    self._test = Test.from_dict(spec, work_dir=wd)
-    
+  def select(self, uids="all"):
+    """
+    Select one or more tests identified by a list of uids, or all for ... all.
+    Default: all.
+    """
+    if uids == "all":
+      self._selection = "all"
+    elif isinstance(uids, tuple):
+      self._selection = list(uids)
+    elif not isinstance(uids, list):
+      self._selection = [uids]
     return self
 
-  def given(self, results):
+  @property
+  def selection(self):
+    if not self._selection or self._selection == "all":
+      return self.list()
+    return self._selection
+
+  @property
+  def _selected_tests(self):
+    return [ self.tests[uid].as_dict() for uid in self.selection ]
+
+  def list(self):
     """
-    Consider previous results.
+    List all tests' uids.
     """
-    try:
-      with open(results) as fp:
-        previous = json.load(fp)
-        if "constants" in previous:
-          self._test.constants = previous["constants"]
-        if "results" in previous:
-          self._test.given(previous["results"])
-    except Exception as e:
-      logger.warn(f"failed to load previous results: {str(e)}")
-    return self
+    return self.tests.keys()
 
   def execute(self):
-    self._test.execute()
+    """
+    Execute selected tests.
+    """
+
+    for uid in self.selection:
+      # try:
+        logger.info(f"⏳ running test '{uid}'")
+        self.tests[uid].execute()
+      # except AttributeError:
+      #   logger.warn(f"🚨 unknown test '{uid}")
     return self
 
   def as_json(self):
     """
     Provide results.
     """
-    print(json.dumps(self._test.as_dict(), indent=2))
+    print(json.dumps(self._selected_tests, indent=2))
     return self
 
   def as_yaml(self):
     """
     Provide results.
     """
-    print(yaml.dump(self._test.as_dict(), indent=2))
+    print(yaml.dump(self._selected_tests, indent=2))
     return self
 
   def __str__(self):

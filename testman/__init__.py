@@ -8,7 +8,7 @@ import traceback
 from dotmap import DotMap
 import uuid
 
-from testman.util import get_function, expand, prune
+from testman.util import get_function, expand, prune, utcnow
 
 class Test():
   
@@ -34,90 +34,116 @@ class Test():
   True
   """
   def __init__(self, description, steps, uid=None,
-                     variables=None, constants=None, work_dir=None,
-                     results=None):
+                     variables=None, constants=None, work_dir=None, runs=None):
     self.uid         = uid if uuid else str(uuid.uuid4())
     self.description = description
     self._variables  = variables
     self.constants   = constants
     self.work_dir    = work_dir
     self.steps       = steps
-    self._results    = results if results else []
+    self._runs       = runs if runs else []
     logger.debug(f"loaded '{self.description}' with {len(self.steps)} steps")
 
   @classmethod
   def from_dict(cls, d, work_dir=None):
-    uid         = d.get("uid", None)
-    description = d.get("test", None)
+    uid         = d.get("uid",      None)
+    description = d.get("test",     None)
+    work_dir    = d.get("work_dir", work_dir)
     variables = {
       var : expand(value) for var, value in d.get("variables", {}).items()
     }
     constants = {
       var : expand(value) for var, value in d.get("constants", {}).items()
     }
-    work_dir = d.get("work_dir", work_dir)
-    steps    = [ Step.from_dict(s) for s in d.get("steps", []) ]
-    results  = d.get("resultes", [])
+    steps = [
+      Step.from_dict(s, idx) for idx, s in enumerate(d.get("steps", []))
+    ]
+    runs = [
+      Run.from_dict(r) for r in d.get("runs", [])
+    ]
     return Test(
       description, steps, uid=uid,
       variables=variables, constants=constants, work_dir=work_dir,
-      results=results
+      runs=runs
     )
 
   def as_dict(self):
     return prune({
-      "uid"         : self.uid,
-      "test"        : self.description,
-      "variables"   : self._variables,
-      "constants"   : self.constants,
-      "work_dir"    : self.work_dir,
-      "steps"       : [ step.as_dict() for step in self.steps ],
-      "results"     : self._results
+      "uid"      : self.uid,
+      "test"     : self.description,
+      "variables": self._variables,
+      "constants": self.constants,
+      "work_dir" : self.work_dir,
+      "steps"    : [ step.as_dict() for step in self.steps ],
+      "runs"     : [ run.as_dict()  for run in self._runs  ]
     })
 
-  def given(self, previous_results):
+  def given(self, previous_run):
     """
-    Consider previous results. This erases previously recorded results in this
+    Consider previous runs. This erases previously recorded runs in this
     object.
     """
-    self._results = [ previous_results ]
+    self._runs = [ previous_run ]
 
   def execute(self):
     """
-    Execute the script.
+    Run the entire script.
     """
-    if self.work_dir:
-      cwd = os.getcwd() 
-      os.chdir(self.work_dir)
-    results = []
-    previous = self.results
-    logger.debug(f"comparing to {len(previous)} previous results")
-    for index, step in enumerate(self.steps):
-      result = { "step" : step.name, "result" : "failed" }
-      if not step.always and index < len(previous) and previous[index]["result"] == "success":
-        logger.info(f"♻️ {step.name}")
-        result = previous[index]
-        result["skipped"] = True
-      else:  
-        try:
-          result["output"] = step.execute(self.vars)
-          result["result"] = "success"
-          logger.info(f"✅ {step.name}")
-        except AssertionError as e:
-          result["info"] = str(e)
-          logger.info(f"🚨 {step.name} - {str(e)}")
-        except Exception as e:
-          result["info"] = traceback.format_exc()
-          logger.info(f"🛑 {step.name}")
-          logger.exception()
+    with WorkIn(self.work_dir):
+      with Run() as run:
+        for step in self.steps:
+          result = self.perform(step)
+          run.add(result)
+          if result["result"] == "failed" and not step.proceed:
+            break
+        self._runs.append(run)
+    return self
 
-      results.append(result)
-      if result["result"] == "failed":
-        if not step.proceed:
-          break
-    if self.work_dir:
-      os.chdir(cwd)
-    self._results.append(results)
+  def perform(self, step):
+    """
+    Run a single step, provided as index or object.
+    """
+    if isinstance(step, int):
+      step = self.steps[index]
+    output  = None
+    result  = "failed"
+    info    = None
+    skipped = False
+
+    # skip?
+    previous = self._previous_run_of(step)
+    if not step.always and previous and previous["result"] == "success":
+      logger.info(f"💤 {step.name}")
+      output = previous["output"]
+      result = previous["result"]
+      skipped = True
+    else:
+      try:
+        output = step.execute(self.vars)
+        if not output in [ int, float, bool, str, list, dict ]:
+          output = repr(output)
+        result = "success"
+        logger.info(f"✅ {step.name}")
+      except AssertionError as e:
+        info = str(e)
+        logger.info(f"🚨 {step.name} - {str(e)}")
+      except Exception as e:
+        info = traceback.format_exc()
+        logger.info(f"🛑 {step.name}")
+        logger.exception("unexpected exception...")
+
+    return {
+      "step"   : step.name,
+      "output" : output,
+      "result" : result,
+      "info"   : info,
+      "skipped": skipped
+    }
+  
+  def _previous_run_of(self, step):
+    if step.index < len(self.results):
+      return self.results[step.index]
+    return None
   
   @property
   def vars(self):
@@ -133,11 +159,12 @@ class Test():
     """
     Provide most recent results.
     """
-    return self._results[-1] if self._results else []
+    return self._runs[-1].results if self._runs else []
   
 class Step():
-  def __init__(self, name=None,    func=None,     args=None,
+  def __init__(self, index=None, name=None,    func=None,     args=None,
                      asserts=None, proceed=False, always=False):
+    self.index   = index
     self.name    = name
     if not self.name:
       raise ValueError("a step needs a name")
@@ -150,7 +177,7 @@ class Step():
     self.always  = always
   
   @classmethod
-  def from_dict(cls, d,):
+  def from_dict(cls, d, index):
     name = d["step"]
     func = d["perform"]
     # parse string into func
@@ -169,7 +196,7 @@ class Step():
     asserts = [ Assertion(a) for a in asserts ]
 
     return Step(
-      name, func, args,
+      index, name, func, args,
       asserts, d.get("continue", None), d.get("always", None)
     )
   
@@ -188,10 +215,10 @@ class Step():
       vars = {}
     # substitute environment variables formatted as $name and files as @name
     args = { k : expand(v, vars) for k,v in self.args.items() }
-    result = self.func(**args)
+    run = self.func(**args)
     for a in self.asserts:
-      a(result)
-    return result
+      a(run)
+    return run
 
 class Assertion():
   def __init__(self, spec):
@@ -212,3 +239,51 @@ class Assertion():
       result = [ DotMap(r) if isinstance(r, dict) else r for r in raw_result ]
     logger.debug(f"asserting '{result}' against '{self._test}'")
     assert eval(self._test), f"'{self._spec}' failed for result={raw_result}"
+
+class Run():
+  def __init__(self):
+    self.start   = None
+    self.end     = None
+    self.results = []
+
+  def add(self, result):
+    self.results.append(result)
+
+  def __enter__(self):
+    self.start = utcnow()
+    return self
+
+  def __exit__(self, type, value, traceback):
+    self.end = utcnow()
+
+  @classmethod
+  def from_dict(cls, d):
+    run = Run()
+    run.start   = d["start"]
+    run.end     = d["end"]
+    run.results = d["results"]
+    return run
+
+  def as_dict(self):
+    return {
+      "start"   : self.start,
+      "end"     : self.end,
+      "results" : self.results
+    }
+
+class WorkIn():
+  def __init__(self, work_dir=None):
+    self.work_dir = work_dir
+    self.cwd      = None
+
+  def __enter__(self):
+    if self.work_dir:
+      self.cwd = os.getcwd() 
+      os.chdir(self.work_dir)
+      logger.info(f"▶ in {self.work_dir}")
+    return self
+
+  def __exit__(self, type, value, traceback):
+    if self.cwd:
+      os.chdir(self.cwd)
+      logger.info(f"◀ in {self.cwd}")

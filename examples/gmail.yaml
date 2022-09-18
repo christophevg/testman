@@ -1,3 +1,4 @@
+uid: gmail
 test: Sending an email and checking that it was delivered
 
 variables:
