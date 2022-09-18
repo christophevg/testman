@@ -278,3 +278,43 @@ steps = [
   }
 ]
 ``` 
+
+## A Typical Workflow
+
+I've designed TestMan with a specific workflow in mind: managing a set of tests that all take some time to complete and therefore need to be run multiple times, until all tests are done.
+
+So a typical workflow would struturally look like:
+
+1. load tests into a test suite
+2. execute
+3. execute
+4. ...
+5. until all tests in the suite have completed
+
+In the mean time, the persisted test information can be used to visualize the status.
+
+The following example, using the examples in the repository, illustrates this:
+
+```console
+% testman state mongodb://localhost:27017/testman/state/session1 load examples/mock.yaml load examples/gmail.yaml status
+mock:  {"done": 0, "pending": 8, "ignored": 0, "summary": "8 pending"}
+gmail: {"done": 0, "pending": 2, "ignored": 0, "summary": "2 pending"}
+% testman state mongodb://localhost:27017/testman/state/session1 execute status
+mock:  {"done": 5, "pending": 2, "ignored": 1, "summary": "2 pending"}
+gmail: {"done": 2, "pending": 0, "ignored": 0, "summary": "all done"}
+% testman state mongodb://localhost:27017/testman/state/session1 execute status
+mock:  {"done": 6, "pending": 1, "ignored": 1, "summary": "1 pending"}
+gmail: {"done": 2, "pending": 0, "ignored": 0, "summary": "all done"}
+% testman state mongodb://localhost:27017/testman/state/session1 execute status
+mock:  {"done": 6, "pending": 1, "ignored": 1, "summary": "1 pending"}
+gmail: {"done": 2, "pending": 0, "ignored": 0, "summary": "all done"}
+% testman state mongodb://localhost:27017/testman/state/session1 execute status
+mock:  {"done": 7, "pending": 0, "ignored": 1, "summary": "all done"}
+gmail: {"done": 2, "pending": 0, "ignored": 0, "summary": "all done"}
+```
+
+After loading two tests into a `session1` `suite` in a MongoDB collection `state`, the initial status shows that 8+2=10 steps need to performed.
+
+After every execution, more steps have been performed succesfully or have been ignored, until alle steps have been completed as requested. 
+
+The execution can be triggered from a function/cron job/... that is called every minute, or every hour, thus enabling long-during test suite executions.
