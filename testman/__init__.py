@@ -117,7 +117,7 @@ class Test():
     else:
       try:
         output = step.execute(self.vars)
-        if not output in [ int, float, bool, str, list, dict ]:
+        if output and not type(output) in [ int, float, bool, str, list, dict ]:
           output = repr(output)
         result = "success"
         logger.info(f"✅ {step.name}")
