@@ -1,4 +1,4 @@
-# TestMan
+<h1><img src="media/logo.png" align="right" width="100">TestMan</h1>
 
 > A manager for testing at a human level
 
