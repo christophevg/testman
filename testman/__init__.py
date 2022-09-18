@@ -50,9 +50,7 @@ class Test():
     uid         = d.get("uid",      None)
     description = d.get("test",     None)
     work_dir    = d.get("work_dir", work_dir)
-    variables = {
-      var : expand(value) for var, value in d.get("variables", {}).items()
-    }
+    variables   = d.get("variables", {})
     constants = {
       var : expand(value) for var, value in d.get("constants", {}).items()
     }
@@ -144,7 +142,10 @@ class Test():
   def vars(self):
     v = {}
     if self._variables:
-      v.update(self._variables)
+      # expand when asked for...
+      v.update({
+        var : expand(value) for var, value in self._variables.items()
+      })
     if self.constants:
       v.update(self.constants)
     return v
