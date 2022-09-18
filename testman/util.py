@@ -38,3 +38,6 @@ def expand(v, vars=None):
 
 def utcnow():
   return datetime.datetime.utcnow().isoformat()
+
+def prune(d):
+  return { k:v for k,v in d.items() if v }

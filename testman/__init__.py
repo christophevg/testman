@@ -6,35 +6,74 @@ logger = logging.getLogger(__name__)
 import os
 import traceback
 from dotmap import DotMap
+import uuid
 
-from testman.util import get_function, expand
+from testman.util import get_function, expand, prune
 
 class Test():
   
   """
   describes a test and allows executing it.
   
-  A Test holds all information regarding a test and allows to execute it.
+  A Test holds all information regarding a test and allows to execute it. It can
+  be constructed from a dictionary and provides an `as_dict` function for
+  marshalling, enabling round-tripping and state persistence, including
+  execution results. This allows for repetitive executions with knowledge of 
+  previous execution.
+  
+  >>> from testman import Test
+  >>> import yaml
+  >>> with open("examples/mock.yaml") as fp:
+  ...   script = yaml.safe_load(fp)
+  ... 
+  >>> t1 = Test.from_dict(script)
+  >>> d1 = t1.as_dict()
+  >>> t2 = Test.from_dict(d1)
+  >>> d2 = t2.as_dict()
+  >>> d1 == d2
+  True
   """
-  def __init__(self, description, steps, vars=None, constants=None, work_dir=None):
+  def __init__(self, description, steps, uid=None,
+                     variables=None, constants=None, work_dir=None,
+                     results=None):
+    self.uid         = uid if uuid else str(uuid.uuid4())
     self.description = description
-    self.steps       = steps
-    self._vars       = vars
+    self._variables  = variables
     self.constants   = constants
     self.work_dir    = work_dir
-    self._results    = []
+    self.steps       = steps
+    self._results    = results if results else []
     logger.debug(f"loaded '{self.description}' with {len(self.steps)} steps")
 
   @classmethod
   def from_dict(cls, d, work_dir=None):
-    vars = {
+    uid         = d.get("uid", None)
+    description = d.get("test", None)
+    variables = {
       var : expand(value) for var, value in d.get("variables", {}).items()
     }
     constants = {
       var : expand(value) for var, value in d.get("constants", {}).items()
     }
-    steps  = [ Step.from_dict(s) for s in d.get("steps", []) ]
-    return Test( d.get("test"), steps, vars, constants, work_dir=work_dir )
+    work_dir = d.get("work_dir", work_dir)
+    steps    = [ Step.from_dict(s) for s in d.get("steps", []) ]
+    results  = d.get("resultes", [])
+    return Test(
+      description, steps, uid=uid,
+      variables=variables, constants=constants, work_dir=work_dir,
+      results=results
+    )
+
+  def as_dict(self):
+    return prune({
+      "uid"         : self.uid,
+      "test"        : self.description,
+      "variables"   : self._variables,
+      "constants"   : self.constants,
+      "work_dir"    : self.work_dir,
+      "steps"       : [ step.as_dict() for step in self.steps ],
+      "results"     : self._results
+    })
 
   def given(self, previous_results):
     """
@@ -83,8 +122,8 @@ class Test():
   @property
   def vars(self):
     v = {}
-    if self._vars:
-      v.update(self._vars)
+    if self._variables:
+      v.update(self._variables)
     if self.constants:
       v.update(self.constants)
     return v
@@ -134,6 +173,16 @@ class Step():
       asserts, d.get("continue", None), d.get("always", None)
     )
   
+  def as_dict(self):
+    return prune({
+      "step"     : self.name,
+      "perform"  : f"{self.func.__module__}.{self.func.__name__}",
+      "with"     : self.args,
+      "assert"   : [ str(assertion) for assertion in self.asserts ],
+      "continue" : self.proceed,
+      "always"   : self.always
+    })
+  
   def execute(self, vars=None):
     if not vars:
       vars = {}
@@ -151,6 +200,9 @@ class Assertion():
     cmd, args = spec.split(" ", 1)
     if cmd in [ "all", "any" ]:
       self._test = f"{cmd}( {args} )"
+      
+  def __str__(self):
+    return self._spec
   
   def __call__(self, raw_result):
     result = raw_result

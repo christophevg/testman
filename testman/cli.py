@@ -39,11 +39,18 @@ class TestManCLI():
   
   def script(self, script):
     """
-    Load a TestMan script encoded in YAML.
+    Load a TestMan script encoded in JSON or YAML.
     """
     logger.debug(f"loading script from '{script}'")
+
+    _, ext = script.rsplit(".", 1)
+    loader = {
+      "yaml" : yaml.safe_load,
+      "yml"  : yaml.safe_load,
+      "json" : json.load
+    }[ext]
     with open(script) as fp:
-      spec = yaml.safe_load(fp)
+      spec = loader(fp)
 
     wd = os.path.dirname(os.path.realpath(script))
     self._test = Test.from_dict(spec, work_dir=wd)
@@ -69,14 +76,18 @@ class TestManCLI():
     self._test.execute()
     return self
 
-  def results(self):
+  def as_json(self):
     """
     Provide results.
     """
-    print(json.dumps({
-      "constants" : self._test.constants,
-      "results" : self._test.results
-    }, indent=2, default=str))
+    print(json.dumps(self._test.as_dict(), indent=2))
+    return self
+
+  def as_yaml(self):
+    """
+    Provide results.
+    """
+    print(yaml.dump(self._test.as_dict(), indent=2))
     return self
 
   def __str__(self):
