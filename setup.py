@@ -22,6 +22,7 @@ INSTALL_REQUIRES = [
   "dotmap",
   "fire",
   "python-dotenv",
+  "pymongo",
   
 ]
 ENTRY_POINTS = {

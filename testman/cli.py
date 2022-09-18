@@ -17,7 +17,7 @@ logging.basicConfig(level=LOG_LEVEL, format=FORMAT, datefmt=DATEFMT)
 formatter = logging.Formatter(FORMAT, DATEFMT)
 
 from testman       import __version__, Test, Step
-from testman.store import MemoryStore, YamlStore, JsonStore
+from testman.store import MemoryStore, YamlStore, JsonStore, MongoStore
 
 import json
 import yaml
@@ -42,8 +42,9 @@ class TestManCLI():
   def state(self, uri):
     moniker, connection_string = uri.split("://", 1)
     self.tests = {
-      "yaml" : YamlStore,
-      "json" : JsonStore
+      "yaml"   : YamlStore,
+      "json"   : JsonStore,
+      "mongodb": MongoStore
     }[moniker](connection_string)
     return self  
   

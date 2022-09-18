@@ -3,6 +3,8 @@ logger = logging.getLogger(__name__)
 
 import yaml
 import json
+from pymongo import MongoClient
+
 
 from testman import Test
 
@@ -85,6 +87,22 @@ class YamlStore(FileStore):
 class JsonStore(FileStore):
   def __init__(self, filename):
     super().__init__(filename, loader=json.load, saver=json.dump)
+
+class MongoStore(Store):
+  def __init__(self, connection_string):
+    server, db_name, collection_name = connection_string.rsplit("/", 2)
+    client = MongoClient(server)
+    db = client[db_name]
+    self.collection = db[collection_name]
+    super().__init__()
+
+  def _persist(self, uid):
+    self.collection.replace_one({"_id": uid}, self._tests[uid].as_dict(), True)
+
+  def _load(self):
+    for test_dict in self.collection.find({}):
+      test = Test.from_dict(test_dict)
+      self._tests[test.uid] = test
 
 class TestWrapper(object):
   """
