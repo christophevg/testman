@@ -89,7 +89,6 @@ class Test():
           if result["result"] == "failed" and not step.proceed:
             break
         self._runs.append(run)
-    return self
 
   def perform(self, step):
     """
