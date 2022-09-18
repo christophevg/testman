@@ -31,6 +31,8 @@ def expand(v, vars=None):
   # try it as a function
   try:
     v = get_function(v)()
+    if v and not type(v) in [ int, float, bool, str, list, dict ]:
+      v = str(v)
   except:
     pass
 
