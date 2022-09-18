@@ -39,6 +39,10 @@ class Store():
   def _load(self):
     raise NotImplementedError
 
+  @property
+  def suites(self):
+    raise NotImplementedError
+
 
 class MemoryStore(Store):
   """
@@ -90,19 +94,30 @@ class JsonStore(FileStore):
 
 class MongoStore(Store):
   def __init__(self, connection_string):
-    server, db_name, collection_name = connection_string.rsplit("/", 2)
+    server, db_name, collection_name, suite = connection_string.rsplit("/", 3)
     client = MongoClient(server)
     db = client[db_name]
     self.collection = db[collection_name]
+    self.suite      = suite
     super().__init__()
 
   def _persist(self, uid):
-    self.collection.replace_one({"_id": uid}, self._tests[uid].as_dict(), True)
+    record = self._tests[uid].as_dict()
+    record["suite"] = self.suite
+    self.collection.replace_one({ "suite": self.suite, "uid": uid }, record, True)
 
   def _load(self):
-    for test_dict in self.collection.find({}):
+    for test_dict in self.collection.find({"suite" : self.suite}):
       test = Test.from_dict(test_dict)
       self._tests[test.uid] = test
+
+  @property
+  def suites(self):
+    return list(self.collection.distinct("suite"))
+
+  def drop(self, suite):
+    result = self.collection.delete_many({"suite" : suite})
+    return { "deleted" : result.deleted_count }
 
 class TestWrapper(object):
   """
