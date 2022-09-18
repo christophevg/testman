@@ -1,6 +1,9 @@
 uid: gmail
 test: Sending an email and checking that it was delivered
 
+constants:
+  UUID: uuid.uuid4
+
 variables:
   TIMESTAMP: testman.util.utcnow
 
@@ -12,7 +15,7 @@ steps:
       username: $GMAIL_USERNAME
       password: $GMAIL_PASSWORD
       recipient: $GMAIL_USERNAME
-      subject: A message from TestMan
+      subject: A message from TestMan ($UUID)
       body: ~gmail_body.txt
   - step: Checking that the email has been delivered
     perform: testman.testers.mail.pop
@@ -20,4 +23,4 @@ steps:
       server: pop.gmail.com
       username: $GMAIL_USERNAME
       password: $GMAIL_PASSWORD
-    assert: any mail.Subject == "A message from TestMan" for mail in result
+    assert: any mail.Subject == "A message from TestMan ($UUID)" for mail in result

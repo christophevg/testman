@@ -248,14 +248,15 @@ class Assertion():
   def __str__(self):
     return self._spec
   
-  def __call__(self, raw_result):
+  def __call__(self, raw_result, vars):
     result = raw_result
     if isinstance(raw_result, dict):
       result = DotMap(raw_result)
     if isinstance(raw_result, list):
       result = [ DotMap(r) if isinstance(r, dict) else r for r in raw_result ]
     logger.debug(f"asserting '{result}' against '{self._test}'")
-    assert eval(self._test), f"'{self._spec}' failed for result={raw_result}"
+    assertion = expand(self._test, vars)
+    assert eval(assertion), f"'{self._spec}' failed for result={raw_result}"
 
 class Run():
   def __init__(self):
