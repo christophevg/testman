@@ -15,6 +15,7 @@ steps:
       hello: WORLD
     assert: result.hello == "world"
     continue: yes
+    ignore: yes
 
   - step: Test that a random value is bigger than 0.7
     perform: testman.testers.mock.random

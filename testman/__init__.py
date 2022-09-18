@@ -41,6 +41,7 @@ class Test():
     self.constants   = constants
     self.work_dir    = work_dir
     self.steps       = steps
+    for step in steps: step.test = self # adopt tests (FIXME)
     self._runs       = runs if runs else []
     logger.debug(f"loaded '{self.description}' with {len(self.steps)} steps")
 
@@ -78,13 +79,6 @@ class Test():
       "runs"     : [ run.as_dict()  for run in self._runs  ]
     })
 
-  def given(self, previous_run):
-    """
-    Consider previous runs. This erases previously recorded runs in this
-    object.
-    """
-    self._runs = [ previous_run ]
-
   def execute(self):
     """
     Run the entire script.
@@ -110,13 +104,19 @@ class Test():
     info    = None
     skipped = False
 
-    # skip?
-    previous = self._previous_run_of(step)
+    # skip previous success
+    previous = step.result
     if not step.always and previous and previous["result"] == "success":
-      logger.info(f"💤 {step.name}")
+      logger.info(f"💤 skipping previously succesfull '{step.name}'")
       output = previous["output"]
       result = previous["result"]
       skipped = True
+    # ignore this step if it failed previously (aka it will never succeed)
+    elif previous and previous["result"] == "failed" and step.ignore:
+      logger.info(f"💤 ignoring previously failed '{step.name}'")
+      output = previous["output"]
+      result = previous["result"]
+      skipped = True      
     else:
       try:
         output = step.execute(self.vars)
@@ -140,11 +140,6 @@ class Test():
       "skipped": skipped
     }
   
-  def _previous_run_of(self, step):
-    if step.index < len(self.results):
-      return self.results[step.index]
-    return None
-  
   @property
   def vars(self):
     v = {}
@@ -161,9 +156,13 @@ class Test():
     """
     return self._runs[-1].results if self._runs else []
   
+  @property
+  def status(self):
+    return [ step.status for step in self.steps ]
+  
 class Step():
   def __init__(self, index=None, name=None,    func=None,     args=None,
-                     asserts=None, proceed=False, always=False):
+                     asserts=None, proceed=False, always=False, ignore=False):
     self.index   = index
     self.name    = name
     if not self.name:
@@ -175,9 +174,26 @@ class Step():
     self.asserts = asserts or []
     self.proceed = proceed
     self.always  = always
+    self.ignore  = ignore
+    self.test    = None
   
+  @property
+  def status(self):
+    if self.result:
+      if self.result["result"] == "success":
+        return "done"
+      if self.result["result"] == "failed" and self.ignore:
+        return "ignored"
+    return "pending"
+
+  @property
+  def result(self):
+    if self.index < len(self.test.results):
+      return self.test.results[self.index]
+    return None
+
   @classmethod
-  def from_dict(cls, d, index):
+  def from_dict(cls, d, index, test=None):
     name = d["step"]
     func = d["perform"]
     # parse string into func
@@ -196,8 +212,8 @@ class Step():
     asserts = [ Assertion(a) for a in asserts ]
 
     return Step(
-      index, name, func, args,
-      asserts, d.get("continue", None), d.get("always", None)
+      index, name, func, args, asserts,
+      d.get("continue", None), d.get("always", None), d.get("ignore", None)
     )
   
   def as_dict(self):
@@ -207,7 +223,8 @@ class Step():
       "with"     : self.args,
       "assert"   : [ str(assertion) for assertion in self.asserts ],
       "continue" : self.proceed,
-      "always"   : self.always
+      "always"   : self.always,
+      "ignore"   : self.ignore
     })
   
   def execute(self, vars=None):

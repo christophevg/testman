@@ -105,7 +105,6 @@ class TestManCLI():
     """
     Execute selected tests.
     """
-
     for uid in self.selection:
       # try:
         logger.info(f"⏳ running test '{uid}'")
@@ -113,6 +112,30 @@ class TestManCLI():
       # except AttributeError:
       #   logger.warn(f"🚨 unknown test '{uid}")
     return self
+
+  def status(self):
+    """
+    Provide information about the status of the selected tests.
+    Example output:
+      {
+        "mock":  {"done": 5, "pending": 2, "ignored": 1, "summary": "2 pending"}
+        "gmail": {"done": 2, "pending": 0, "ignored": 0, "summary": "all done"}
+      }
+    """
+    def summary(status):
+      done    = status.count("done")
+      pending = status.count("pending")
+      ignored = status.count("ignored")
+      return {
+        "done"    : done,
+        "pending" : pending,
+        "ignored" : ignored,
+        "summary" : f"{pending} pending" if pending else "all done"
+      }
+    return {
+      uid : summary(self.tests[uid].status)
+      for uid in self.selection 
+    }
 
   def as_json(self):
     """
