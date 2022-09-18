@@ -232,10 +232,10 @@ class Step():
       vars = {}
     # substitute environment variables formatted as $name and files as @name
     args = { k : expand(v, vars) for k,v in self.args.items() }
-    run = self.func(**args)
+    result = self.func(**args)
     for a in self.asserts:
-      a(run)
-    return run
+      a(result, vars)
+    return result
 
 class Assertion():
   def __init__(self, spec):
