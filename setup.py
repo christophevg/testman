@@ -5,7 +5,7 @@ import setuptools
 NAME             = "testman"
 AUTHOR           = "Christophe VG"
 AUTHOR_EMAIL     = "contact@christophe.vg"
-DESCRIPTION      = "A manager for testing at a human level"
+DESCRIPTION      = "A manager for automated testing by humans"
 LICENSE          = "MIT"
 KEYWORDS         = "manager testing human"
 URL              = "https://github.com/christophevg/" + NAME

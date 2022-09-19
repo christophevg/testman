@@ -1,6 +1,6 @@
 <h1><img src="../media/logo.png" align="right" width="100">TestMan</h1>
 
-> A manager for testing at a human level
+> A manager for automated testing by humans
 
 [![Latest Version on PyPI](https://img.shields.io/pypi/v/testman.svg)](https://pypi.python.org/pypi/testman/)
 [![Supported Implementations](https://img.shields.io/pypi/pyversions/testman.svg)](https://pypi.python.org/pypi/testman/)

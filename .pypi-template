@@ -1,4 +1,4 @@
-a_description_for_the_package: A manager for testing at a human level
+a_description_for_the_package: A manager for automated testing by humans
 classifiers:
 - 'Programming Language :: Python :: 3'
 - 'Programming Language :: Python :: 3.8'
@@ -13,7 +13,7 @@ keywords_describing_the_package: manager testing human
 license: MIT
 package_module_name: testman
 package_name: testman
-package_tagline: A manager for testing at a human level
+package_tagline: A manager for automated testing by humans
 package_title: TestMan
 requires:
 - pyyaml
