@@ -3,6 +3,9 @@ import importlib
 import re
 import datetime
 
+import yaml
+import json
+
 def get_function(func):
   mod_name, func_name = func.rsplit(".", 1)
   mod = importlib.import_module(mod_name)
@@ -43,3 +46,13 @@ def utcnow():
 
 def prune(d):
   return { k:v for k,v in d.items() if v or v == False }
+
+def load_ml(filename):
+  _, ext = filename.rsplit(".", 1)
+  loader = {
+    "yaml" : yaml.safe_load,
+    "yml"  : yaml.safe_load,
+    "json" : json.load
+  }[ext]
+  with open(filename) as fp:
+    return loader(fp)

@@ -1,15 +1,15 @@
 uid: mock
-test: Playing with mocked tests
+name: Playing with mocked tests
 
 steps:
-  - step: Test that an envrionment variable as argument is returned
+  - name: Test that an envrionment variable as argument is returned
     perform: testman.testers.mock.test
     with:
       hello: $STEP1_VALUE
     assert: result.hello == "world"
     always: yes
 
-  - step: Test that an incorrect argument fails
+  - name: Test that an incorrect argument fails
     perform: testman.testers.mock.test
     with:
       hello: WORLD
@@ -17,34 +17,34 @@ steps:
     continue: yes
     ignore: yes
 
-  - step: Test that a random value is bigger than 0.7
+  - name: Test that a random value is bigger than 0.7
     perform: testman.testers.mock.random
     assert: result > 0.7
     continue: yes
 
-  - step: Test that two keys of a random dict match criteria
+  - name: Test that two keys of a random dict match criteria
     perform: testman.testers.mock.random_dict
     assert:
       - result.result1 < 0.5
       - result.result2 > 0.5 or result.result2 < 0.1
     continue: yes
 
-  - step: Test that any values in a random list is < 0.5
+  - name: Test that any values in a random list is < 0.5
     perform: testman.testers.mock.random_list
     assert: any item < 0.5 for item in result
     continue: yes
 
-  - step: Test that all of the dicts in a list have result1 < 0.5
+  - name: Test that all of the dicts in a list have result1 < 0.5
     perform: testman.testers.mock.random_list_of_dict
     assert: all item.result1 < 0.5 for item in result
     continue: yes
 
-  - step: Test that values inside a nested dict can be asserted
+  - name: Test that values inside a nested dict can be asserted
     perform: testman.testers.mock.nested_dict
     assert: any item.subresult == 1 for item in result.subresults
     continue: yes
 
-  - step: Test that object properties and methods can be asserted
+  - name: Test that object properties and methods can be asserted
     perform: testman.testers.mock.an_object
     assert:
       - result.a == 1

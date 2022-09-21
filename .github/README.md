@@ -31,7 +31,7 @@ The following TestMan script defines this test and can be written by a non-devel
 
 ```yaml
 uid: gmail
-test: Sending an email and checking that it was delivered
+name: Sending an email and checking that it was delivered
 
 constants:
   UUID: uuid.uuid4
@@ -40,7 +40,7 @@ variables:
   TIMESTAMP: testman.util.utcnow
 
 steps:
-  - step: Sending an email
+  - name: Sending an email
     perform: testman.testers.mail.send
     with:
       server: smtp.gmail.com:587
@@ -49,7 +49,7 @@ steps:
       recipient: $GMAIL_USERNAME
       subject: A message from TestMan ($UUID)
       body: ~gmail_body.txt
-  - step: Checking that the email has been delivered
+  - name: Checking that the email has been delivered
     perform: testman.testers.mail.pop
     with:
       server: pop.gmail.com
@@ -97,7 +97,9 @@ def pop(server=None, username=None, password=None):
   result = []
   for msg in messages:
     m = email.message_from_bytes(b"\n".join(msg[1]), policy=email.policy.default)
-    r = dict(m.items())
+    r = {}
+    for k, v in dict(m.items()).items():
+      r[k] = str(v)
     r["Body"] = m.get_content()
     result.append(r)
   return result
@@ -121,20 +123,22 @@ True
 >>> mytest = Test.from_dict(script, work_dir="examples/")
 >>> mytest.execute()
 >>> print(json.dumps(mytest.results, indent=2))
-[
-  {
-    "step": "Sending an email",
+{
+  "Sending an email": {
+    "start": "2022-09-21T07:07:44.982532",
+    "end": "2022-09-21T07:07:46.204026",
     "output": null,
-    "result": "success",
     "info": null,
+    "status": "success",
     "skipped": false
   },
-  {
-    "step": "Checking that the email has been delivered",
+  "Checking that the email has been delivered": {
+    "start": "2022-09-21T07:07:46.204132",
+    "end": "2022-09-21T07:07:48.345193",
     "output": [
       {
         "Return-Path": "<someone@email.com>",
-        "Received": "from ip6.arpa (d54c2bdfb.access.telenet.be. [84.194.189.251])",
+        "Received": "from ip6.arpa (d54.access.telenet.be. [4.19.19.25])",
         "Message-ID": "<fd4dc.9827@mx.google.com>",
         "Date": "Sun, 18 Sep 2022 11:31:17 -0700",
         "From": "someone@email.com",
@@ -143,36 +147,38 @@ True
         "Body": "Hello,\n\nThis is an automated message from TestMan.\nTime of sending: 2022-09-18T18:31:16.128970\n\nregards,\nTestMan"
       }
     ],
-    "result": "success",
     "info": null,
+    "status": "success",
     "skipped": false
   }
-]
+}
 ```
 
 ... and from the command line ...
 
 ```console
 % python -m testman load examples/gmail.yaml execute results_as_json
-[2022-09-18 20:32:04 +0200] ⏳ running test 'gmail'
-[2022-09-18 20:32:04 +0200] ▶ in /Users/xtof/Workspace/testman/examples
-[2022-09-18 20:32:06 +0200] ✅ Sending an email
-[2022-09-18 20:32:08 +0200] ✅ Checking that the email has been delivered
-[2022-09-18 20:32:08 +0200] ◀ in /Users/xtof/Workspace/testman
-[
-  {
-    "step": "Sending an email",
+% python -m testman load examples/gmail.yaml execute results_as_json
+[2022-09-21 09:11:19 +0200] ▶ in /Users/xtof/Workspace/testman/examples
+[2022-09-21 09:11:20 +0200] ✅ Sending an email
+[2022-09-21 09:11:22 +0200] ✅ Checking that the email has been delivered
+[2022-09-21 09:11:22 +0200] ◀ in /Users/xtof/Workspace/testman
+{
+  "Sending an email": {
+    "start": "2022-09-21T07:07:44.982532",
+    "end": "2022-09-21T07:07:46.204026",
     "output": null,
-    "result": "success",
     "info": null,
+    "status": "success",
     "skipped": false
   },
-  {
-    "step": "Checking that the email has been delivered",
+  "Checking that the email has been delivered": {
+    "start": "2022-09-21T07:07:46.204132",
+    "end": "2022-09-21T07:07:48.345193",
     "output": [
       {
         "Return-Path": "<someone@email.com>",
-        "Received": "from ip6.arpa (d54c2bdfb.access.telenet.be. [84.194.189.251])",
+        "Received": "from ip6.arpa (d54.access.telenet.be. [4.19.19.25])",
         "Message-ID": "<fd4dc.9827@mx.google.com>",
         "Date": "Sun, 18 Sep 2022 11:31:17 -0700",
         "From": "someone@email.com",
@@ -181,28 +187,27 @@ True
         "Body": "Hello,\n\nThis is an automated message from TestMan.\nTime of sending: 2022-09-18T18:31:16.128970\n\nregards,\nTestMan"
       }
     ],
-    "result": "success",
     "info": null,
+    "status": "success",
     "skipped": false
   }
-]
+}
 ```
 
 The examples folder contains another TestMan script, that uses some mocked up test functions to illustrate some of the possibilities:
 
 ```console
 % python -m testman load examples/mock.yaml execute
-[2022-09-18 20:35:09 +0200] ⏳ running test 'mock'
-[2022-09-18 20:35:09 +0200] ▶ in /Users/xtof/Workspace/testman/examples
-[2022-09-18 20:35:09 +0200] ✅ Test that an envrionment variable as argument is returned
-[2022-09-18 20:35:09 +0200] 🚨 Test that an incorrect argument fails - 'result.hello == "world"' failed for result={'hello': 'WORLD'}
-[2022-09-18 20:35:09 +0200] ✅ Test that a random value is bigger than 0.7
-[2022-09-18 20:35:09 +0200] 🚨 Test that two keys of a random dict match criteria - 'result.result2 > 0.5 or result.result2 < 0.1' failed for result={'result1': 0.02073252292540928, 'result2': 0.22656189460680887, 'result3': 0.46902653623128454}
-[2022-09-18 20:35:09 +0200] ✅ Test that any values in a random list is < 0.5
-[2022-09-18 20:35:09 +0200] ✅ Test that all of the dicts in a list have result1 < 0.5
-[2022-09-18 20:35:09 +0200] ✅ Test that values inside a nested dict can be asserted
-[2022-09-18 20:35:09 +0200] ✅ Test that object properties and methods can be asserted
-[2022-09-18 20:35:09 +0200] ◀ in /Users/xtof/Workspace/testman
+[2022-09-21 09:11:55 +0200] ▶ in /Users/xtof/Workspace/testman/examples
+[2022-09-21 09:11:55 +0200] ✅ Test that an envrionment variable as argument is returned
+[2022-09-21 09:11:55 +0200] 🚨 Test that an incorrect argument fails - 'result.hello == "world"' failed for result={'hello': 'WORLD'}
+[2022-09-21 09:11:55 +0200] 🚨 Test that a random value is bigger than 0.7 - 'result > 0.7' failed for result=0.16237524253063063
+[2022-09-21 09:11:55 +0200] 🚨 Test that two keys of a random dict match criteria - 'result.result1 < 0.5' failed for result={'result1': 0.5824170196145589, 'result2': 0.6443538640468358, 'result3': 0.5201206405472322}
+[2022-09-21 09:11:55 +0200] ✅ Test that any values in a random list is < 0.5
+[2022-09-21 09:11:55 +0200] 🚨 Test that all of the dicts in a list have result1 < 0.5 - 'all item.result1 < 0.5 for item in result' failed for result=[{'result1': 0.5336479045489211, 'result2': 0.30981993872330327, 'result3': 0.27661254405288216}, {'result1': 0.23920511249278598, 'result2': 0.7080886447360248, 'result3': 0.1361173238448583}, {'result1': 0.719807760896399, 'result2': 0.21743598455790847, 'result3': 0.6627068916970688}]
+[2022-09-21 09:11:55 +0200] ✅ Test that values inside a nested dict can be asserted
+[2022-09-21 09:11:55 +0200] ✅ Test that object properties and methods can be asserted
+[2022-09-21 09:11:55 +0200] ◀ in /Users/xtof/Workspace/testman
 ```
 
 And if you install Testman from PyPi, it will also install the `testman` command line script.
@@ -210,19 +215,18 @@ And if you install Testman from PyPi, it will also install the `testman` command
 ```console
 % pip install testman
 % testman version
-0.0.2
+0.0.3
 % testman load ../testman/examples/mock.yaml execute
-[2022-09-18 20:36:21 +0200] ⏳ running test 'mock'
-[2022-09-18 20:36:21 +0200] ▶ in /Users/xtof/Workspace/testman/examples
-[2022-09-18 20:36:21 +0200] ✅ Test that an envrionment variable as argument is returned
-[2022-09-18 20:36:21 +0200] 🚨 Test that an incorrect argument fails - 'result.hello == "world"' failed for result={'hello': 'WORLD'}
-[2022-09-18 20:36:21 +0200] 🚨 Test that a random value is bigger than 0.7 - 'result > 0.7' failed for result=0.4020109040150247
-[2022-09-18 20:36:21 +0200] ✅ Test that two keys of a random dict match criteria
-[2022-09-18 20:36:21 +0200] ✅ Test that any values in a random list is < 0.5
-[2022-09-18 20:36:21 +0200] 🚨 Test that all of the dicts in a list have result1 < 0.5 - 'all item.result1 < 0.5 for item in result' failed for result=[{'result1': 0.24236524998489084, 'result2': 0.8798206841418267, 'result3': 0.2151746637364007}, {'result1': 0.6300145921822637, 'result2': 0.3710688620345316, 'result3': 0.8003818254117001}, {'result1': 0.524604320014001, 'result2': 0.28222806362024966, 'result3': 0.3942522752529033}]
-[2022-09-18 20:36:21 +0200] ✅ Test that values inside a nested dict can be asserted
-[2022-09-18 20:36:21 +0200] ✅ Test that object properties and methods can be asserted
-[2022-09-18 20:36:21 +0200] ◀ in /Users/xtof/Workspace/testman_test
+[2022-09-21 09:12:37 +0200] ▶ in /Users/xtof/Workspace/testman/examples
+[2022-09-21 09:12:37 +0200] ✅ Test that an envrionment variable as argument is returned
+[2022-09-21 09:12:37 +0200] 🚨 Test that an incorrect argument fails - 'result.hello == "world"' failed for result={'hello': 'WORLD'}
+[2022-09-21 09:12:37 +0200] 🚨 Test that a random value is bigger than 0.7 - 'result > 0.7' failed for result=0.111074170853391
+[2022-09-21 09:12:37 +0200] 🚨 Test that two keys of a random dict match criteria - 'result.result2 > 0.5 or result.result2 < 0.1' failed for result={'result1': 0.1970010221173848, 'result2': 0.20193458254324714, 'result3': 0.25430481982617814}
+[2022-09-21 09:12:37 +0200] ✅ Test that any values in a random list is < 0.5
+[2022-09-21 09:12:37 +0200] 🚨 Test that all of the dicts in a list have result1 < 0.5 - 'all item.result1 < 0.5 for item in result' failed for result=[{'result1': 0.36567629773296983, 'result2': 0.7890211368675198, 'result3': 0.28117765912895376}, {'result1': 0.6011158365310331, 'result2': 0.9422161128407222, 'result3': 0.9990457704008657}, {'result1': 0.1991118692356576, 'result2': 0.8839600916890447, 'result3': 0.7788144324166787}]
+[2022-09-21 09:12:37 +0200] ✅ Test that values inside a nested dict can be asserted
+[2022-09-21 09:12:37 +0200] ✅ Test that object properties and methods can be asserted
+[2022-09-21 09:12:37 +0200] ◀ in /Users/xtof/Workspace/testman_test
 ```
 
 ## Getting Started
@@ -237,7 +241,7 @@ To implement your own test functions, simply write a function and use its FQN as
 ...   return f"hello {name}"
 ... 
 >>> steps = yaml.safe_load("""
-... - step: say hello
+... - name: say hello
 ...   perform: __main__.hello
 ...   with:
 ...     name: Christophe
@@ -247,15 +251,16 @@ To implement your own test functions, simply write a function and use its FQN as
 >>> mytest = Test.from_dict({"test" : "hello testman", "steps" : steps})
 >>> mytest.execute()
 >>> print(json.dumps(mytest.results, indent=2))
-[
-  {
-    "step": "say hello",
+{
+  "say hello": {
+    "start": "2022-09-21T07:14:56.240191",
+    "end": "2022-09-21T07:14:56.242444",
     "output": "hello Christophe",
-    "result": "success",
     "info": null,
+    "status": "success",
     "skipped": false
   }
-]
+}
 ```
 
 ## The TestMan Steps DSL
@@ -296,24 +301,30 @@ In the mean time, the persisted test information can be used to visualize the st
 The following example, using the examples in the repository, illustrates this:
 
 ```console
-% testman state mongodb://localhost:27017/testman/state/session1 load examples/mock.yaml load examples/gmail.yaml status
-mock:  {"done": 0, "pending": 8, "ignored": 0, "summary": "8 pending"}
-gmail: {"done": 0, "pending": 2, "ignored": 0, "summary": "2 pending"}
-% testman state mongodb://localhost:27017/testman/state/session1 execute status
-mock:  {"done": 5, "pending": 2, "ignored": 1, "summary": "2 pending"}
-gmail: {"done": 2, "pending": 0, "ignored": 0, "summary": "all done"}
-% testman state mongodb://localhost:27017/testman/state/session1 execute status
-mock:  {"done": 6, "pending": 1, "ignored": 1, "summary": "1 pending"}
-gmail: {"done": 2, "pending": 0, "ignored": 0, "summary": "all done"}
-% testman state mongodb://localhost:27017/testman/state/session1 execute status
-mock:  {"done": 6, "pending": 1, "ignored": 1, "summary": "1 pending"}
-gmail: {"done": 2, "pending": 0, "ignored": 0, "summary": "all done"}
-% testman state mongodb://localhost:27017/testman/state/session1 execute status
-mock:  {"done": 7, "pending": 0, "ignored": 1, "summary": "all done"}
-gmail: {"done": 2, "pending": 0, "ignored": 0, "summary": "all done"}
+% testman state mongodb://localhost:27017/testman/suites load ../testman/examples/mock.yaml load ../testman/examples/gmail.yaml
+
+% testman state mongodb://localhost:27017/testman/suites suite summary        
+mock:  {"unknown": 8, "success": 0, "ignored": 0, "pending": 0, "failed": 0, "summary": "8 in progress"}
+gmail: {"unknown": 2, "success": 0, "ignored": 0, "pending": 0, "failed": 0, "summary": "2 in progress"}
+
+% testman state mongodb://localhost:27017/testman/suites suite execute summary
+mock:  {"unknown": 0, "success": 5, "ignored": 1, "pending": 2, "failed": 0, "summary": "2 in progress"}
+gmail: {"unknown": 0, "success": 2, "ignored": 0, "pending": 0, "failed": 0, "summary": "all done"}
+% testman state mongodb://localhost:27017/testman/suites suite execute summary
+mock:  {"unknown": 0, "success": 5, "ignored": 1, "pending": 2, "failed": 0, "summary": "2 in progress"}
+gmail: {"unknown": 0, "success": 2, "ignored": 0, "pending": 0, "failed": 0, "summary": "all done"}
+% testman state mongodb://localhost:27017/testman/suites suite execute summary
+mock:  {"unknown": 0, "success": 6, "ignored": 1, "pending": 1, "failed": 0, "summary": "1 in progress"}
+gmail: {"unknown": 0, "success": 2, "ignored": 0, "pending": 0, "failed": 0, "summary": "all done"}
+% testman state mongodb://localhost:27017/testman/suites suite execute summary
+mock:  {"unknown": 0, "success": 6, "ignored": 1, "pending": 1, "failed": 0, "summary": "1 in progress"}
+gmail: {"unknown": 0, "success": 2, "ignored": 0, "pending": 0, "failed": 0, "summary": "all done"}
+% testman state mongodb://localhost:27017/testman/suites suite execute summary
+mock:  {"unknown": 0, "success": 7, "ignored": 1, "pending": 0, "failed": 0, "summary": "all done"}
+gmail: {"unknown": 0, "success": 2, "ignored": 0, "pending": 0, "failed": 0, "summary": "all done"}
 ```
 
-After loading two tests into a `session1` `suite` in a MongoDB collection `state`, the initial status shows that 8+2=10 steps need to performed.
+After loading two tests into the MongoDB `suites` collection, the initial status shows that 8+2=10 steps in two tests (mock and gmail) need to performed.
 
 After every execution, more steps have been performed succesfully or have been ignored, until alle steps have been completed as requested. 
 

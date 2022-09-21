@@ -6,7 +6,7 @@ def hello(name):
   return f"hello {name}"
 
 steps = yaml.safe_load("""
-- step: say hello
+- name: say hello
   perform: __main__.hello
   with:
     name: Christophe

@@ -6,7 +6,7 @@ load_dotenv(find_dotenv(usecwd=True))
 
 import os
 
-LOG_LEVEL = os.environ.get("LOG_LEVEL") or "INFO"
+LOG_LEVEL = os.environ.get("LOG_LEVEL") or "DEBUG"
 
 logging.getLogger("urllib3").setLevel(logging.WARN)
 
@@ -16,89 +16,118 @@ DATEFMT = "%Y-%m-%d %H:%M:%S %z"
 logging.basicConfig(level=LOG_LEVEL, format=FORMAT, datefmt=DATEFMT)
 formatter = logging.Formatter(FORMAT, DATEFMT)
 
-from testman       import __version__, Test, Step
-from testman.util  import prune
-from testman.store import MemoryStore, YamlStore, JsonStore, MongoStore
-
 import json
 import yaml
+from pymongo import MongoClient
+
+from testman       import __version__, Suite, Test, Step, states
+from testman.util  import prune, load_ml
+from testman.state import State, YamlState, JsonState, MongoState
 
 class TestManCLI():
   """
   A wrapper around testman.Test, intended to be used in combination with Fire.
   
   Typical usage:
-      % testman script examples/mock.yaml execute results
+      % testman load examples/mock.yaml execute status
   """
   def __init__(self):
-    self.stored     = MemoryStore()
-    self._selection = "all"
+    self.suites  = State()
+    self._suite = "default"
   
+  @property
   def version(self):
     """
-    Output TestMan's version.
+    Return TestMan's version.
     """
-    print(__version__)
+    return __version__
   
   def state(self, uri):
+    def create_mongo_state(connection_string):
+      server, db_name, collection_name = connection_string.rsplit("/", 2)
+      client = MongoClient(server)
+      db = client[db_name]
+      return MongoState(db[collection_name])
+
     moniker, connection_string = uri.split("://", 1)
-    self.stored = {
-      "yaml"   : YamlStore,
-      "json"   : JsonStore,
-      "mongodb": MongoStore
+    self.suites = {
+      "yaml"   : YamlState,
+      "json"   : JsonState,
+      "mongodb": create_mongo_state
     }[moniker](connection_string)
     return self  
   
-  def load(self, statefile):
+  def select(self, name):
     """
-    Load a TestMan script/state encoded in JSON or YAML.
+    Select the suite to work with.
     """
-    logger.debug(f"loading from '{statefile}'")
+    self._suite = name
+    return self
+
+  @property
+  def suite(self):
+    """
+    Return the currently selected suite, creating one if it doesn't exist yet.
+    """
+    try:
+      return self.suites[self._suite]
+    except KeyError:
+      self.suites.add(Suite(self._suite))
+    return self.suites[self._suite]
+      
+  def load(self, script):
+    """
+    Load a TestMan script/state encoded in JSON or YAML into the current suite.
+    """
+    logger.debug(f"loading test from '{script}'")
     
-    self.stored.add(
+    self.suite.add(
       Test.from_dict(
-        self._load(statefile),
-        work_dir=os.path.dirname(os.path.realpath(statefile))
+        load_ml(script),
+        work_dir=os.path.dirname(os.path.realpath(script))
       )
     )
     return self
 
-  def _load(self, filename):
-    _, ext = filename.rsplit(".", 1)
-    loader = {
-      "yaml" : yaml.safe_load,
-      "yml"  : yaml.safe_load,
-      "json" : json.load
-    }[ext]
-    with open(filename) as fp:
-      return loader(fp)
+  def list(self, what="suites"):
+    """
+    List known 'suites' or 'tests'.
+    """
+    return {
+      "suites" : list(self.suites.keys()),
+      "tests"  : [ test.uid for test in self.suite.tests ]
+    }[what]
 
-  def select(self, uids="all"):
+  def execute(self):
     """
-    Select one or more tests identified by a list of uids, or all for ... all.
-    Default: all.
+    Execute the currently selected suite.
     """
-    if uids == "all":
-      self._selection = "all"
-    elif isinstance(uids, tuple):
-      self._selection = list(uids)
-    elif not isinstance(uids, list):
-      self._selection = [uids]
+    self.suite.execute()
+    return self
+
+  def drop(self, suite=None):
+    """
+    Drop/delete/remove a suite by name or 'all' for all suites.
+    """
+    if suite is None:
+      self.suites.drop(self._suite)
+    elif suite == "all":
+      for suite in self.suites.keys():
+        self.suites.drop(suite)
+    else:
+      self.suites.drop(suite)
     return self
 
   @property
-  def selection(self):
-    if not self._selection or self._selection == "all":
-      return self.list()
-    return self._selection
-
-  @property
-  def tests(self):
-    return [ self.stored[uid] for uid in self.selection ]
+  def summary(self):
+    """
+    Provide summaries for all suites.
+    """
+    return { suite.name : suite.summary for suite in self.suites.values() }
 
   @property
   def results(self):
-    return [ [ prune(results) for results in test.results] for test in self.tests ]
+    return self.suite.results
 
   @property
   def results_as_json(self):
@@ -108,61 +137,19 @@ class TestManCLI():
   def results_as_yaml(self):
     return yaml.dump(self.results)
 
-  def list(self):
-    """
-    List all tests' uids.
-    """
-    return self.stored.keys()
-
-  def execute(self):
-    """
-    Execute selected tests.
-    """
-    for uid in self.selection:
-      # try:
-        logger.info(f"⏳ running test '{uid}'")
-        self.stored[uid].execute()
-      # except AttributeError:
-      #   logger.warn(f"🚨 unknown test '{uid}")
-    return self
-
-  def status(self):
-    """
-    Provide information about the status of the selected tests.
-    Example output:
-      {
-        "mock":  {"done": 5, "pending": 2, "ignored": 1, "summary": "2 pending"}
-        "gmail": {"done": 2, "pending": 0, "ignored": 0, "summary": "all done"}
-      }
-    """
-    def summary(status):
-      done    = status.count("done")
-      pending = status.count("pending")
-      ignored = status.count("ignored")
-      return {
-        "done"    : done,
-        "pending" : pending,
-        "ignored" : ignored,
-        "summary" : f"{pending} pending" if pending else "all done"
-      }
-    return {
-      uid : summary(self.stored[uid].status)
-      for uid in self.selection 
-    }
-
+  @property
   def as_json(self):
     """
-    Provide results.
+    Dump currently selected suite as json.
     """
-    print(json.dumps([ test.as_dict() for test in self.tests ], indent=2))
-    return self
+    return json.dumps(self.suite.as_dict(), indent=2)
 
+  @property
   def as_yaml(self):
     """
-    Provide results.
+    Dump currently selected suite as yaml.
     """
-    print(yaml.dump([ test.as_dict() for test in self.tests ], indent=2))
-    return self
+    return yaml.dump(self.suite.as_dict(), indent=2)
 
   def __str__(self):
     return ""

@@ -1,5 +1,5 @@
 uid: gmail
-test: Sending an email and checking that it was delivered
+name: Sending an email and checking that it was delivered
 
 constants:
   UUID: uuid.uuid4
@@ -8,7 +8,7 @@ variables:
   TIMESTAMP: testman.util.utcnow
 
 steps:
-  - step: Sending an email
+  - name: Sending an email
     perform: testman.testers.mail.send
     with:
       server: smtp.gmail.com:587
@@ -17,7 +17,7 @@ steps:
       recipient: $GMAIL_USERNAME
       subject: A message from TestMan ($UUID)
       body: ~gmail_body.txt
-  - step: Checking that the email has been delivered
+  - name: Checking that the email has been delivered
     perform: testman.testers.mail.pop
     with:
       server: pop.gmail.com

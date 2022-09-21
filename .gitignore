@@ -9,3 +9,5 @@ docs/_build
 *.backup
 .python-version
 .env
+state.json
+state.yaml
