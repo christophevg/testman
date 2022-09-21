@@ -130,5 +130,6 @@ class MongoState(State):
     return list(self.collection.distinct("suite"))
 
   def drop(self, suite):
+    del self[suite]
     self.collection.delete_many({"name" : suite })
     return self
