@@ -27,7 +27,9 @@ def pop(server=None, username=None, password=None):
   result = []
   for msg in messages:
     m = email.message_from_bytes(b"\n".join(msg[1]), policy=email.policy.default)
-    r = dict(m.items())
+    r = {}
+    for k, v in dict(m.items()).items():
+      r[k] = str(v)
     r["Body"] = m.get_content()
     result.append(r)
   return result
