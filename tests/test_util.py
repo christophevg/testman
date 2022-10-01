@@ -55,3 +55,7 @@ def test_expand_mixed_nested_data_structures():
              "nested" : "also-test-world"
            }
          }
+
+def test_expand_expanded_function():
+  value = "uuid.$FUNC"
+  assert len(str(expand(value, { "FUNC" : "uuid4" }))) == 36

@@ -19,3 +19,10 @@ def test_basic_failing_assertion():
   step.execute()
   assert step.last.status == "failed"
   assert step.last.info   == "'result == False' failed for result=True"
+
+def test_serialization_of_object_result():
+  import uuid
+  step = Step(name="name", func=uuid.uuid4)
+  step.execute()
+  assert isinstance(step.last.raw, uuid.UUID)
+  assert step.as_dict()["runs"][0]["output"][:6] == "UUID('"

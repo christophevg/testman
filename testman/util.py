@@ -41,8 +41,6 @@ def expand(value, vars=None):
   # try it as a function
   try:
     value = get_function(value)()
-    if value and not type(value) in [ int, float, bool, str, list, dict ]:
-      value = str(value)
   except:
     pass
 
