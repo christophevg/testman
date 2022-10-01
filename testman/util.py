@@ -11,35 +11,38 @@ def get_function(func):
   mod = importlib.import_module(mod_name)
   return getattr(mod, func_name)
 
-def expand(v, vars=None):
-  if not vars:
-    vars = {}
-  # load from file
-  if v[0] == "~":
-    with open(v[1:]) as fp:
-      v = fp.read()
+def expand(value, vars=None):
+  # dict?
+  if isinstance(value, dict):
+    return { k : expand(v, vars) for k, v in value.items() }
+
+  # load from file (prefix ~)
+  if value[0] == "~":
+    with open(value[1:]) as fp:
+      value = fp.read()
 
   # expand env vars
+  if not vars: vars = {}
   r = re.compile(r"([$?])(\w+)\b")
-  for _, var in r.findall(v):
-    value = vars.get(var, os.environ.get(var))
-    if value:
-      if v == f"$var":
-        v = value
+  for _, var in r.findall(value):
+    replacement = vars.get(var, os.environ.get(var))
+    if replacement:
+      if value == f"$var":
+        value = replacement
       else:
-        v = v.replace(f"${var}", str(value))
+        value = value.replace(f"${var}", str(replacement))
     else:
       raise ValueError(f"unknown variable '{var}'")
 
   # try it as a function
   try:
-    v = get_function(v)()
-    if v and not type(v) in [ int, float, bool, str, list, dict ]:
-      v = str(v)
+    value = get_function(value)()
+    if value and not type(value) in [ int, float, bool, str, list, dict ]:
+      value = str(value)
   except:
     pass
 
-  return v
+  return value
 
 def utcnow():
   return datetime.datetime.utcnow().isoformat()
