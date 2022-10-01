@@ -16,6 +16,10 @@ def expand(value, vars=None):
   if isinstance(value, dict):
     return { k : expand(v, vars) for k, v in value.items() }
 
+  # list?
+  if isinstance(value, list):
+    return [ expand(v, vars) for v in value ]
+
   # load from file (prefix ~)
   if value[0] == "~":
     with open(value[1:]) as fp:

@@ -31,3 +31,27 @@ def test_expand_nested_dicts():
   }
   assert expand(value, { "WORLD" : "world" }) == \
          { "hello" : "test-world", "world" : { "nested" : "also-test-world" } }
+
+def test_expand_list():
+  value = [ "hello" , "test-$WORLD" ]
+  assert expand(value, { "WORLD" : "world" }) == [ "hello", "test-world" ]
+
+def test_expand_nested_lists():
+  value = [ "hello" , "test-$WORLD", [ "nested", "also-test-$WORLD" ] ]
+  assert expand(value, { "WORLD" : "world" }) == \
+         [ "hello" , "test-world", [ "nested", "also-test-world" ] ]
+
+def test_expand_mixed_nested_data_structures():
+  value = {
+    "lists" : [ "hello" , "test-$WORLD", [ "nested", "also-test-$WORLD" ] ],
+    "dicts" : {
+      "nested" : "also-test-$WORLD"
+    }
+  }
+  assert expand(value, { "WORLD" : "world" }) == \
+         {
+           "lists" : [ "hello" , "test-world", [ "nested", "also-test-world" ]],
+           "dicts" : {
+             "nested" : "also-test-world"
+           }
+         }
