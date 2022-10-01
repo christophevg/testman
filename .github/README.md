@@ -37,7 +37,7 @@ constants:
   UUID: uuid.uuid4
 
 variables:
-  TIMESTAMP: testman.util.utcnow
+  TIMESTAMP: testman.util.utcnow/isoformat
 
 steps:
   - name: Sending an email
