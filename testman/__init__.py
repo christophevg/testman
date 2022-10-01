@@ -335,7 +335,7 @@ class Step():
       return self.last.status == "failed" and not self.proceed
     return False
 
-  def execute(self, vars):
+  def execute(self, vars=None):
     with Run() as run:
       # if previous run as successful, skip
       if self.last and self.last.status == "success" and not self.always:
@@ -379,7 +379,7 @@ class Assertion():
   def __str__(self):
     return self._spec
   
-  def __call__(self, raw_result, vars):
+  def __call__(self, raw_result, vars=None):
     result = raw_result
     if isinstance(raw_result, dict):
       result = DotMap(raw_result)
