@@ -5,7 +5,7 @@ import json
 import random as rnd
 
 def test(**kwargs):
-  logger.debug(json.dumps(kwargs))
+  logger.debug(json.dumps(kwargs, default=str))
   if "fail" in kwargs:
     raise Exception(kwargs["fail"])
   return kwargs

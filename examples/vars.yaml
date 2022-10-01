@@ -11,6 +11,20 @@ steps:
   - name: step 1
     perform: testman.testers.mock.test
     with:
-      variable: $variable_id
-      constant: $constant_id
+      variable: variable_id
+      constant: constant_id
     always: yes
+    assert:
+      - result.variable is variable_id
+      - result.constant is constant_id
+    
+  - name: step 2
+    perform: testman.testers.mock.test
+    with:
+      variable: STEP[0].variable
+      constant: STEP[0].constant
+    assert:
+      # variable_id differs between steps!
+      - not result.variable is variable_id 
+      # constant_id not
+      - result.constant is constant_id

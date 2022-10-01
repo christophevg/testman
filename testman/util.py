@@ -1,10 +1,14 @@
+import logging
+logger = logging.getLogger()
+
 import os
 import importlib
 import re
-import datetime
 
 import yaml
 import json
+
+from dotmap import DotMap
 
 def get_function(func):
   mod_name, func_name = func.rsplit(".", 1)
@@ -25,29 +29,68 @@ def expand(value, vars=None):
     with open(value[1:]) as fp:
       value = fp.read()
 
-  # expand env vars
-  if not vars: vars = {}
-  r = re.compile(r"([$?])(\w+)\b")
-  for _, var in r.findall(value):
-    replacement = vars.get(var, os.environ.get(var))
+  # expand
+  if not vars:
+    vars = {}
+  else:
+    vars = dict(vars) # copy to avoid leaking back
+  # logger.info(json.dumps(vars, indent=2, default=str))
+  vars.update(os.environ) # add environment variables
+  # turn all values into mapped values
+  vars = { k: mapped(v) for k,v in vars.items() }
+  r = re.compile(r"{([^}]+)}")
+  for stmt in r.findall(value):
+    replacement = eval(stmt, {}, vars)
     if replacement:
-      if value == f"$var":
+      if value == "{" + stmt + "}":
         value = replacement
       else:
-        value = value.replace(f"${var}", str(replacement))
+        value = value.replace("{"+stmt+"}", str(replacement))
     else:
       raise ValueError(f"unknown variable '{var}'")
 
   # try it as a function
   try:
-    value = get_function(value)()
+    process = value.split("/")
+    func    = process.pop(0)
+    value   = postprocess(get_function(func)(), process)
+  except:
+    pass
+
+  # try eval
+  try:
+    value = eval(value, vars)
   except:
     pass
 
   return value
 
-def utcnow():
-  return datetime.datetime.utcnow().isoformat()
+def postprocess(output, processors):
+  for processor in processors:
+    if isinstance(output, dict):
+      if processor in dict:
+        output = output[processor]
+    elif isinstance(output, object) and hasattr(output, processor):
+      p = getattr(output, processor)
+      if callable(p):
+        output = p()
+      else:
+        output = p
+    else:
+      try:
+        f = get_function(processor)
+        if callable(f):
+          output = f(output)
+      except:
+        pass
+
+  if not type(output) in [ int, float, bool, str, list, dict ]:
+    try:
+      output = output.__dict__
+    except:
+      output = str(output)
+
+  return output
 
 def prune(d):
   return { k:v for k,v in d.items() if v or v == False }
@@ -61,3 +104,10 @@ def load_ml(filename):
   }[ext]
   with open(filename) as fp:
     return loader(fp)
+
+def mapped(value):
+  if isinstance(value, dict):
+    return DotMap(value)
+  if isinstance(value, list):
+    return [ mapped(v) for v in value ]
+  return value

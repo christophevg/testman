@@ -5,7 +5,7 @@ steps:
   - name: Test that an envrionment variable as argument is returned
     perform: testman.testers.mock.test
     with:
-      hello: $STEP1_VALUE
+      hello: STEP1_VALUE
     assert: result.hello == "world"
     always: yes
 
@@ -44,9 +44,8 @@ steps:
     assert: any item.subresult == 1 for item in result.subresults
     continue: yes
 
-  - name: Test that object properties and methods can be asserted
+  - name: Test that object properties can be asserted
     perform: testman.testers.mock.an_object
     assert:
       - result.a == 1
-      - result.get_body() == "hello"
     continue: yes

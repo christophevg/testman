@@ -15,7 +15,7 @@ Although automated testing inherently requires code, and Python has a very reada
 
 Still testers still want to describe tests in a way that they can easily be automated - if possible without having to rely on developers to (en)code them. 
 
-TestMan tries to offer a simple framework that brings together both worlds, by offering a simple test definition interface combined with a simple way for developers to provide additional, reusable testing functions.
+TestMan tries to offer a simple framework that brings together both worlds, by offering a simple test definition interface (aka a DSL) combined with a simple way for developers to provide additional, reusable testing functions, all with the power of Python underneath.
 
 ## A Word of Caution
 
@@ -43,19 +43,20 @@ steps:
   - name: Sending an email
     perform: testman.testers.mail.send
     with:
-      server: smtp.gmail.com:587
-      username: $GMAIL_USERNAME
-      password: $GMAIL_PASSWORD
-      recipient: $GMAIL_USERNAME
-      subject: A message from TestMan ($UUID)
-      body: ~gmail_body.txt
+      server   : smtp.gmail.com:587
+      username : GMAIL_USERNAME
+      password : GMAIL_PASSWORD
+      recipient: GMAIL_USERNAME
+      subject  : A message from TestMan ({UUID})
+      body     : ~gmail_body.txt
+
   - name: Checking that the email has been delivered
     perform: testman.testers.mail.pop
     with:
-      server: pop.gmail.com
-      username: $GMAIL_USERNAME
-      password: $GMAIL_PASSWORD
-    assert: any mail.Subject == "A message from TestMan ($UUID)" for mail in result
+      server   : pop.gmail.com
+      username : GMAIL_USERNAME
+      password : GMAIL_PASSWORD
+    assert: any mail.Subject == "A message from TestMan ({UUID})" for mail in result
 ```
 
 So this test consists of two `steps`:
@@ -158,7 +159,6 @@ True
 
 ```console
 % python -m testman load examples/gmail.yaml execute results_as_json
-% python -m testman load examples/gmail.yaml execute results_as_json
 [2022-09-21 09:11:19 +0200] ▶ in /Users/xtof/Workspace/testman/examples
 [2022-09-21 09:11:20 +0200] ✅ Sending an email
 [2022-09-21 09:11:22 +0200] ✅ Checking that the email has been delivered
@@ -229,13 +229,14 @@ And if you install Testman from PyPi, it will also install the `testman` command
 [2022-09-21 09:12:37 +0200] ◀ in /Users/xtof/Workspace/testman_test
 ```
 
-## Getting Started
+## Custom Test Functions
 
 To implement your own test functions, simply write a function and use its FQN as `perform` parameter:
 
 ```pycon
->>> import yaml, json
->>> from testman import Test
+>>> import yaml
+>>> import json
+>>> from testman import Test, Step
 >>> 
 >>> def hello(name):
 ...   return f"hello {name}"
@@ -248,13 +249,13 @@ To implement your own test functions, simply write a function and use its FQN as
 ...   assert: result == "hello Christophe"
 ... """)
 >>> 
->>> mytest = Test.from_dict({"test" : "hello testman", "steps" : steps})
+>>> mytest = Test("hello world test", [ Step.from_dict(step) for step in steps ])
 >>> mytest.execute()
 >>> print(json.dumps(mytest.results, indent=2))
 {
   "say hello": {
-    "start": "2022-09-21T07:14:56.240191",
-    "end": "2022-09-21T07:14:56.242444",
+    "start": "2022-10-01T15:07:16.366154",
+    "end": "2022-10-01T15:07:16.366565",
     "output": "hello Christophe",
     "info": null,
     "status": "success",
@@ -265,15 +266,15 @@ To implement your own test functions, simply write a function and use its FQN as
 
 ## The TestMan Steps DSL
 
-TestMan uses a nested dictionary structure as its domain specific language to encode the steps to take during the test. I personally prefer to write them in `yaml`, yet this is purely optional and a personal choice. As loong as you pass a dictionary to TestMan, it will happily process it.
+TestMan uses a nested dictionary structure as its domain specific language to encode the steps to take during the test. I personally prefer to write them in `yaml`, yet this is purely optional and a personal choice. As long as you pass a dictionary to TestMan, it will happily process it.
 
 The dictionary looks like this:
 
 ```
 steps = [
   {
-    "step" : "a description of the step used to refer to it",
-    "perform" : "the fully qualified name of a function, or a short hand into the TestMan Standard Testers",
+    "name" : "a description of the step used to refer to it",
+    "perform" : "the fully qualified name of a function",
     "with" : {
       "key" : "value pairs of arguments passed to the function as named arguments",
     },
@@ -329,3 +330,86 @@ After loading two tests into the MongoDB `suites` collection, the initial status
 After every execution, more steps have been performed succesfully or have been ignored, until alle steps have been completed as requested. 
 
 The execution can be triggered from a function/cron job/... that is called every minute, or every hour, thus enabling long-during test suite executions.
+
+## An More Elaborate Example
+
+An example that showcases some more of the features of TestMan is `examples/postbin.yaml`:
+
+```yaml
+uid: postbin
+name: use postbin to test calling an API
+
+constants:
+  POSTBIN: https://www.toptal.com/developers/postbin
+
+steps:
+  - name: Create a bin
+    perform: requests.post/testman.unwrap.requests.json
+    with:
+      url: "{POSTBIN}/api/bin"
+    assert:
+      - result.status_code == 201
+      - "'binId' in result.json"
+
+  - name: Post something to bin
+    perform: requests.post
+    with:
+      url: "{POSTBIN}/{STEP[0].json.binId}"
+      params:
+        hello: world
+      data:
+        more:
+          - data_0
+          - data_1
+    assert:
+      - result.status_code == 200
+    always: yes
+
+  - name: Check content of bin
+    perform: requests.get/json
+    with:
+      url: "{POSTBIN}/api/bin/{STEP[0].json.binId}/req/shift"
+    assert:
+      - result.query.hello  == "world"
+      - result.body.more[1] == "data_1"
+    always: yes
+```
+
+### Output Unwrapping
+
+TestMan doesn't like objects as output. Simply because it wants to be able to serialize output to a simple JSON representation and back. So, when the output of a performed function is an object, TestMan tries to unwrap this into something more like a dict. So without your intervention, an object will be transformed to its `__dict__`.
+
+The `post` function from the `requests` module returns a `Response` object. So by default, TestMan will return a dict containint the folowing keys:
+
+```pycon
+>>> import requests
+>>> r = requests.get("http://google.be")
+>>> r.__dict__.keys()
+dict_keys(['_content', '_content_consumed', '_next', 'status_code', 'headers', 'raw', 'url', 'encoding', 'history', 'reason', 'cookies', 'elapsed', 'request', 'connection'])
+```
+
+This might be perfect for your test step. If you'd like to inspect, let's say the returned JSON, you'd have to call `json.parse()` your self.
+
+The `perform` statement takes optional post-processors. Post-processors are appended to the function, separated by slashes. A post-processor can be a property name, a function name, a string to be applied to a dict or a function.
+
+In case of the requests module, we can therefore append `/json` to the function to perform and have the resulting Response object unwrapped using its `.json()` method.
+
+Another approach is to write your own unwrapping function. In the postbin example `testman.unwrap.requests.json` is simply defined as:
+
+```python
+def json(response):
+  return {
+    "status_code" : response.status_code,
+    "json"        : response.json()
+  }
+```
+
+It simply extracts the `status_code` along with the `json` part in a simple dict.
+
+### String Interpollation
+
+Using curly braces, existing variables, constants, environment variables,... can be dynamically inserted into strings:
+
+`"{POSTBIN}/{STEP[0].json.binId}"`
+
+includes both the `POSTBIN` constant aswell as the implicit `STEP` variable that contains the last outputs of all previous steps.

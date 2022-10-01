@@ -1,0 +1,37 @@
+uid: postbin
+name: use postbin to test calling an API
+
+constants:
+  POSTBIN: https://www.toptal.com/developers/postbin
+
+steps:
+  - name: Create a bin
+    perform: requests.post/testman.unwrap.requests.json
+    with:
+      url: "{POSTBIN}/api/bin"
+    assert:
+      - result.status_code == 201
+      - "'binId' in result.json"
+
+  - name: Post something to bin
+    perform: requests.post
+    with:
+      url: "{POSTBIN}/{STEP[0].json.binId}"
+      params:
+        hello: world
+      data:
+        more:
+          - data_0
+          - data_1
+    assert:
+      - result.status_code == 200
+    always: yes
+
+  - name: Check content of bin
+    perform: requests.get/json
+    with:
+      url: "{POSTBIN}/api/bin/{STEP[0].json.binId}/req/shift"
+    assert:
+      - result.query.hello  == "world"
+      - result.body.more[1] == "data_1"
+    always: yes

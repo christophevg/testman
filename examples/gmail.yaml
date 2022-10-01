@@ -5,22 +5,23 @@ constants:
   UUID: uuid.uuid4
 
 variables:
-  TIMESTAMP: testman.util.utcnow
+  TIMESTAMP: testman.util.utcnow/isoformat
 
 steps:
   - name: Sending an email
     perform: testman.testers.mail.send
     with:
-      server: smtp.gmail.com:587
-      username: $GMAIL_USERNAME
-      password: $GMAIL_PASSWORD
-      recipient: $GMAIL_USERNAME
-      subject: A message from TestMan ($UUID)
-      body: ~gmail_body.txt
+      server   : smtp.gmail.com:587
+      username : GMAIL_USERNAME
+      password : GMAIL_PASSWORD
+      recipient: GMAIL_USERNAME
+      subject  : A message from TestMan ({UUID})
+      body     : ~gmail_body.txt
+
   - name: Checking that the email has been delivered
     perform: testman.testers.mail.pop
     with:
-      server: pop.gmail.com
-      username: $GMAIL_USERNAME
-      password: $GMAIL_PASSWORD
-    assert: any mail.Subject == "A message from TestMan ($UUID)" for mail in result
+      server   : pop.gmail.com
+      username : GMAIL_USERNAME
+      password : GMAIL_PASSWORD
+    assert: any mail.Subject == "A message from TestMan ({UUID})" for mail in result

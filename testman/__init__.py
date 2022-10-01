@@ -5,10 +5,10 @@ logger = logging.getLogger(__name__)
 
 import os
 import traceback
-from dotmap import DotMap
 import uuid
+import datetime
 
-from testman.util import get_function, expand, prune, utcnow
+from testman.util import get_function, expand, prune, mapped, postprocess
 
 states = [ "unknown", "success", "ignored", "pending", "failed" ]
 states_map = { state : index for index, state in enumerate(states) }
@@ -184,10 +184,9 @@ class Test():
     """
     Run the entire script.
     """
-    vars = self.vars
     with WorkIn(self.work_dir):
       for step in self.steps:
-        step.execute(vars)
+        step.execute(self.vars)
         if step.abort:
           break
   
@@ -202,13 +201,17 @@ class Test():
   @property
   def vars(self):
     v = {}
+    # variables
     if self._variables:
       # expand when asked for...
       v.update({
         var : expand(value) for var, value in self._variables.items()
       })
+    # constants
     if self.constants:
       v.update(self.constants)
+    # previous steps' output
+    v["STEP"] = [ mapped(step.last.raw) for step in self.steps if step.last ]
     return v
   
   @property
@@ -227,17 +230,17 @@ class Test():
     return reduce_states(self.overview)
   
 class Step():
-  def __init__(self, index=None, name=None,    func=None,     args=None,
+  def __init__(self, name=None,    func=None,     process=None, args=None,
                      asserts=None,
                      proceed=False, always=False, ignore=False, noretry=False,
                      runs=None):
-    self.index   = index
     self.name    = name
     if not self.name:
       raise ValueError("a step needs a name")
     self.func    = func
     if not self.func:
       raise ValueError("a step needs a function")
+    self.process = process or []
     self.args    = args or {}
     self.asserts = asserts or []
     self.proceed = proceed
@@ -248,9 +251,10 @@ class Step():
     self.runs    = runs or []
   
   @classmethod
-  def from_dict(cls, d, index, test=None):
-    name = d["name"]
-    func = d["perform"]
+  def from_dict(cls, d, test=None):
+    name    = d["name"]
+    process = d["perform"].split("/")
+    func    = process.pop(0)
     # parse string into func
     if isinstance(func, str):
       try:
@@ -272,17 +276,20 @@ class Step():
     runs    = [ Run.from_dict(run) for run in runs]
 
     return Step(
-      index, name, func, args, asserts,
+      name, func, process, args, asserts,
       d.get("continue", None), d.get("always", None), d.get("ignore", None),
       d.get("noretry", None),
       runs
     )
   
   def as_dict(self):
+    process = ""
+    if self.process:
+      process = "/" + "/".join(self.process)
     return prune({
       "name"     : self.name,
       "status"   : self.status,
-      "perform"  : f"{self.func.__module__}.{self.func.__name__}",
+      "perform"  : f"{self.func.__module__}.{self.func.__name__}{process}",
       "with"     : self.args,
       "assert"   : [ str(assertion) for assertion in self.asserts ],
       "continue" : self.proceed,
@@ -341,6 +348,7 @@ class Step():
       if self.last and self.last.status == "success" and not self.always:
         logger.info(f"💤 skipping previously succesfull '{self.name}'")
         run.status = self.last.status
+        run.raw    = self.last.raw
         run.skipped = True
       # if previous run failed, but we ignore it because it will always fail
       elif self.last and self.last.status == "failed" and self.ignore:
@@ -351,7 +359,7 @@ class Step():
         # actually execute it
         try:
           args = { k : expand(v, vars) for k,v in self.args.items() }
-          run.output = self.func(**args)
+          run.output = postprocess(self.func(**args), self.process)
           for a in self.asserts:
             a(run.raw, vars)
           run.status = "success"
@@ -372,22 +380,19 @@ class Assertion():
   def __init__(self, spec):
     self._spec = spec
     self._test = spec
-    cmd, args = spec.split(" ", 1)
-    if cmd in [ "all", "any" ]:
-      self._test = f"{cmd}( {args} )"
+    if " " in spec:
+      cmd, args = spec.split(" ", 1)
+      if cmd in [ "all", "any" ]:
+        self._test = f"{cmd}( {args} )"
       
   def __str__(self):
     return self._spec
   
   def __call__(self, raw_result, vars=None):
-    result = raw_result
-    if isinstance(raw_result, dict):
-      result = DotMap(raw_result)
-    if isinstance(raw_result, list):
-      result = [ DotMap(r) if isinstance(r, dict) else r for r in raw_result ]
+    result = mapped(raw_result)
     logger.debug(f"asserting '{result}' against '{self._test}'")
     assertion = expand(self._test, vars)
-    assert eval(assertion), f"'{self._spec}' failed for result={raw_result}"
+    assert eval(assertion, {"result": result}, vars), f"'{self._spec}' failed for result={raw_result}"
 
 class Run():
   def __init__(self):
@@ -406,16 +411,17 @@ class Run():
   @output.setter
   def output(self, output):
     self.raw = output
+    # reduce output to what is JSON serializable
     if output and not type(output) in [ int, float, bool, str, list, dict ]:
-        output = repr(output)
+      output = str(output)
     self._output = output
 
   def __enter__(self):
-    self.start = utcnow()
+    self.start = datetime.datetime.utcnow().isoformat()
     return self
 
   def __exit__(self, type, value, traceback):
-    self.end = utcnow()
+    self.end = datetime.datetime.utcnow().isoformat()
 
   @classmethod
   def from_dict(cls, d):
