@@ -8,7 +8,10 @@ import traceback
 import uuid
 import datetime
 
-from testman.util import get_function, expand, prune, mapped, postprocess
+from testman.util import get_function, expand, prune, mapped
+
+# TODO create Command class
+from testman.util import parse_command, format_command, postprocess
 
 states = [ "unknown", "success", "ignored", "pending", "failed" ]
 states_map = { state : index for index, state in enumerate(states) }
@@ -252,17 +255,11 @@ class Step():
   
   @classmethod
   def from_dict(cls, d, test=None):
-    name    = d["name"]
-    process = d["perform"].split("/")
-    func    = process.pop(0)
-    # parse string into func
-    if isinstance(func, str):
-      try:
-        func = get_function(func)
-      except ModuleNotFoundError as e:
-        raise ValueError(f"in step '{name}': unknown module for {func}") from e
-      except AttributeError as e:
-        raise ValueError(f"in step '{name}': unknown function {func}") from e
+    name = d["name"]
+    try:
+      func, process = parse_command(d["perform"])
+    except Exception as e:
+      raise ValueError(f"in step '{name}': {e}") from e
     args = d.get("with", {})
     # accept single string or list of strings
     asserts = d.get("assert", [])
@@ -283,13 +280,10 @@ class Step():
     )
   
   def as_dict(self):
-    process = ""
-    if self.process:
-      process = "/" + "/".join(self.process)
     return prune({
       "name"     : self.name,
       "status"   : self.status,
-      "perform"  : f"{self.func.__module__}.{self.func.__name__}{process}",
+      "perform"  : format_command(self.func, self.process),
       "with"     : self.args,
       "assert"   : [ str(assertion) for assertion in self.asserts ],
       "continue" : self.proceed,

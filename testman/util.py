@@ -12,9 +12,12 @@ import json
 from dotmap import DotMap
 
 def get_function(func):
-  mod_name, func_name = func.rsplit(".", 1)
-  mod = importlib.import_module(mod_name)
-  return getattr(mod, func_name)
+  if "." in func:
+    mod_name, func_name = func.rsplit(".", 1)
+    mod = importlib.import_module(mod_name)
+    return getattr(mod, func_name)
+  else:
+    return eval(func)
 
 def expand(value, vars=None):
   # dict?
@@ -52,9 +55,8 @@ def expand(value, vars=None):
 
   # try it as a function
   try:
-    process = value.split("/")
-    func    = process.pop(0)
-    value   = postprocess(get_function(func)(), process)
+    func, process = parse_command(value)
+    value = postprocess(func(), process)
   except:
     pass
 
@@ -65,6 +67,26 @@ def expand(value, vars=None):
     pass
 
   return value
+
+def parse_command(cmd):
+  # parse string into func and filters
+  if isinstance(cmd, str):
+    try:
+      filters = [ filter.strip() for filter in cmd.split("|") ]
+      func    = get_function(filters.pop(0))
+      return func, filters
+    except ModuleNotFoundError as e:
+      raise ValueError(f"unknown module for {func}") from e
+    except AttributeError as e:
+        raise ValueError(f"unknown function {func}") from e
+  if callable(cmd):
+    return cmd, []
+  raise ValueError(f"not a valid command string")
+
+def format_command(func, filters=""):
+  if filters:
+    filters = "|" + "|".join(filters)
+  return f"{func.__module__}.{func.__name__}{filters}"
 
 def postprocess(output, processors):
   for processor in processors:

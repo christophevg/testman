@@ -37,7 +37,7 @@ constants:
   UUID: uuid.uuid4
 
 variables:
-  TIMESTAMP: testman.util.utcnow/isoformat
+  TIMESTAMP: testman.util.utcnow | isoformat
 
 steps:
   - name: Sending an email
@@ -344,7 +344,7 @@ constants:
 
 steps:
   - name: Create a bin
-    perform: requests.post/testman.unwrap.requests.json
+    perform: requests.post | testman.unwrap.requests.json
     with:
       url: "{POSTBIN}/api/bin"
     assert:
@@ -366,7 +366,7 @@ steps:
     always: yes
 
   - name: Check content of bin
-    perform: requests.get/json
+    perform: requests.get | json
     with:
       url: "{POSTBIN}/api/bin/{STEP[0].json.binId}/req/shift"
     assert:
@@ -392,7 +392,7 @@ This might be perfect for your test step. If you'd like to inspect, let's say th
 
 The `perform` statement takes optional post-processors. Post-processors are appended to the function, separated by slashes. A post-processor can be a property name, a function name, a string to be applied to a dict or a function.
 
-In case of the requests module, we can therefore append `/json` to the function to perform and have the resulting Response object unwrapped using its `.json()` method.
+In case of the requests module, we can therefore append `| json` to the function to perform and have the resulting Response object unwrapped using its `.json()` method.
 
 Another approach is to write your own unwrapping function. In the postbin example `testman.unwrap.requests.json` is simply defined as:
 

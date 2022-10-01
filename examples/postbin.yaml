@@ -6,7 +6,7 @@ constants:
 
 steps:
   - name: Create a bin
-    perform: requests.post/testman.unwrap.requests.json
+    perform: requests.post | testman.unwrap.requests.json
     with:
       url: "{POSTBIN}/api/bin"
     assert:
@@ -28,7 +28,7 @@ steps:
     always: yes
 
   - name: Check content of bin
-    perform: requests.get/json
+    perform: requests.get | json
     with:
       url: "{POSTBIN}/api/bin/{STEP[0].json.binId}/req/shift"
     assert:
