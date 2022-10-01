@@ -1,4 +1,4 @@
-<h1><img src="../media/logo.png" align="right" width="100">TestMan</h1>
+<h1><img src="https://raw.githubusercontent.com/christophevg/testman/master/media/logo.png" align="right" width="100">TestMan</h1>
 
 > A manager for automated testing by humans
 
