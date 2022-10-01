@@ -4,6 +4,7 @@ logger = logging.getLogger()
 import os
 import importlib
 import re
+import datetime
 
 import yaml
 import json
@@ -111,3 +112,6 @@ def mapped(value):
   if isinstance(value, list):
     return [ mapped(v) for v in value ]
   return value
+
+def utcnow():
+  return datetime.datetime.utcnow()
