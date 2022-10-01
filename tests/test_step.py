@@ -8,18 +8,14 @@ def test_basic_operation():
   def f():
     return True
   step = Step(name="name", func=f, asserts=[ Assertion("result == True")] )
-  result = step.execute()
-  assert result == True
+  step.execute()
+  assert step.last.output == True
+  assert step.last.status == "success"
 
 def test_basic_failing_assertion():
   def f():
     return True
   step = Step(name="name", func=f, asserts=[ Assertion("result == False")] )
-  success = True
-  try:
-    step.execute()
-  except AssertionError:
-    success = False
-  if success:
-    assert False, "should have raised an assertion error"
-
+  step.execute()
+  assert step.last.status == "failed"
+  assert step.last.info   == "'result == False' failed for result=True"
