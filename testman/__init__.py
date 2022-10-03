@@ -21,7 +21,7 @@ def reduce_states(l):
     si = states_map[s]
     if si > state:
       state = si
-  return states[state] 
+  return states[state]
 
 class Suite():
   """
@@ -121,6 +121,30 @@ class Suite():
       
     return { test.uid : summary(test.overview) for test in self.tests }
 
+class Constant():
+  def __init__(self, expression, value=None):
+    self.expression = expression
+    self.value      = value
+    if not self.value:
+      self.reset()
+  
+  def reset(self):
+    self.value = expand(self.expression)
+
+  @classmethod
+  def from_dict(cls, d):
+    try:
+      return cls(d["expression"], d["value"])
+    except:
+      return cls(d)
+    
+
+  def as_dict(self):
+    return {
+      "expression"  : self.expression,
+      "value"       : self.value
+    }
+
 class Test():
   
   """
@@ -162,7 +186,7 @@ class Test():
     work_dir    = d.get("work_dir", work_dir)
     variables   = d.get("variables", {})
     constants = {
-      var : expand(value) for var, value in d.get("constants", {}).items()
+      name: Constant.from_dict(expr) for name, expr in d.get("constants", {}).items()
     }
     steps = [
       Step.from_dict(s, idx) for idx, s in enumerate(d.get("steps", []))
@@ -178,7 +202,7 @@ class Test():
       "name"     : self.description,
       "status"   : self.status,
       "variables": self._variables,
-      "constants": self.constants,
+      "constants": { name: constant.as_dict() for name, constant in self.constants.items() },
       "work_dir" : self.work_dir,
       "steps"    : [ step.as_dict() for step in self.steps ]
     })
@@ -195,8 +219,10 @@ class Test():
   
   def reset(self):
     """
-    Reset the test by removing al previous runs' information.
+    Reset the test by removing al previous runs' information and constants.
     """
+    for constant in self.constants.values():
+      constant.reset()
     for step in self.steps:
       step.reset()
     return self
@@ -212,7 +238,7 @@ class Test():
       })
     # constants
     if self.constants:
-      v.update(self.constants)
+      v.update({ name: constant.value for name, constant in self.constants.items()})
     # previous steps' output
     v["STEP"] = [ mapped(step.last.raw) for step in self.steps if step.last ]
     return v
