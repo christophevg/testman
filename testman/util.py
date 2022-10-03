@@ -76,9 +76,9 @@ def parse_command(cmd):
       func    = get_function(filters.pop(0))
       return func, filters
     except ModuleNotFoundError as e:
-      raise ValueError(f"unknown module for {func}") from e
+      raise ValueError(f"unknown module for {cmd}") from e
     except AttributeError as e:
-        raise ValueError(f"unknown function {func}") from e
+        raise ValueError(f"unknown function {cmd}") from e
   if callable(cmd):
     return cmd, []
   raise ValueError(f"not a valid command string")
